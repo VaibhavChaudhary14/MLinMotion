@@ -29,11 +29,20 @@ export function analyzeDatasetQuality(
 
     for (const r of rows) {
       const v = r[col];
-      if (v === null || v === undefined || v === '' || (typeof v === 'number' && isNaN(v))) {
+      if (
+        v === null ||
+        v === undefined ||
+        v === '' ||
+        (typeof v === 'string' && v.trim() === '') ||
+        (typeof v === 'number' && isNaN(v))
+      ) {
         missingCount++;
       } else {
         values.push(v);
-        if (typeof v === 'number' || !isNaN(Number(v))) {
+        if (
+          typeof v === 'number' ||
+          (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v)) && !isNaN(parseFloat(v)))
+        ) {
           numericCount++;
         }
       }
@@ -42,6 +51,8 @@ export function analyzeDatasetQuality(
     const isNumeric = numericCount > 0 && numericCount === values.length;
     const uniqueValues = Array.from(new Set(values));
     const uniqueCount = uniqueValues.length;
+    const isIdentifier =
+      col.toLowerCase().includes('id') && uniqueCount > 0 && (uniqueCount === values.length || uniqueCount === n);
 
     let min: number | undefined;
     let max: number | undefined;
@@ -86,21 +97,34 @@ export function analyzeDatasetQuality(
       }
     }
 
-    // Missing value check
+    // Missing value check with semantic awareness (numeric vs text/categorical)
     if (missingCount > 0) {
       const pct = Number(((missingCount / n) * 100).toFixed(1));
-      warnings.push({
-        id: `missing-${col}`,
-        level: pct > 20 ? 'critical' : 'warning',
-        title: `Missing Values in "${col}" (${pct}%)`,
-        explanation: `${missingCount} out of ${n} entries are empty. Standard matrix operations will fail without imputation or exclusion.`,
-        recommendedAction: 'Configure mean/median imputation in the Preprocessing Studio.',
-      });
+      if (isNumeric) {
+        warnings.push({
+          id: `missing-${col}`,
+          level: pct > 20 ? 'critical' : 'warning',
+          title: `Missing Values in "${col}" (${pct}%) [Numeric]`,
+          explanation: `${missingCount} out of ${n} entries are empty. Standard matrix operations (distance, covariance) will fail without imputation or exclusion.`,
+          recommendedAction: 'Configure mean/median imputation or drop rows in the Preprocessing Studio.',
+        });
+      } else {
+        warnings.push({
+          id: `missing-${col}`,
+          level: pct > 25 ? 'critical' : 'warning',
+          title: `Missing Values in "${col}" (${pct}%) [Categorical/Text]`,
+          explanation: `${missingCount} out of ${n} entries are empty in non-numeric column.`,
+          recommendedAction:
+            pct > 25
+              ? 'High missingness in text feature. Recommend dropping this column or imputing with placeholder "Unknown". (Note: Mean/median is mathematically undefined for text).'
+              : 'Impute missing entries with the mode (most frequent) or placeholder "Unknown", or drop empty rows. (Note: Mean/median is undefined for text).',
+        });
+      }
     }
 
     return {
       name: col,
-      type: isNumeric ? 'numeric' : 'categorical',
+      type: isIdentifier ? 'identifier' : isNumeric ? 'numeric' : 'categorical',
       missingCount,
       uniqueCount,
       min,
@@ -109,6 +133,19 @@ export function analyzeDatasetQuality(
       sampleValues: values.slice(0, 5),
     };
   });
+
+  // Check if dataset has sufficient numeric features for geometric algorithms
+  const numericCount = summaryColumns.filter((c) => c.type === 'numeric').length;
+  if (numericCount < 2 && summaryColumns.length > 0) {
+    warnings.unshift({
+      id: 'few-numeric-features',
+      level: 'warning',
+      title: `Few Quantitative Features (${numericCount} numeric of ${summaryColumns.length} total)`,
+      explanation: `Dataset is primarily text/categorical. 2D K-Means Voronoi clustering and OLS Regression require at least two quantitative numeric coordinates (x, y ∈ ℝ).`,
+      recommendedAction:
+        'Select numerical columns (e.g. release_year) or encode categorical values into numeric coordinates.',
+    });
+  }
 
   // Class Imbalance Check if target is categorical
   if (targetColumn) {

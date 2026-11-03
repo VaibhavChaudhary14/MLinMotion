@@ -8,6 +8,7 @@ import { AnalogButton } from '@/components/ui/AnalogButton';
 import { Badge } from '@/components/ui/Badge';
 import { BENCHMARK_DATASETS } from '@/lib/datasets/benchmarks';
 import { analyzeDatasetQuality } from '@/lib/datasets/dataQuality';
+import { parseCSV } from '@/lib/datasets/csvParser';
 import { runFullKMeansTrace, initializeCentroidsKMeansPlusPlus } from '@/lib/math/kmeans';
 import { computeOLS } from '@/lib/math/regression';
 import { saveExperimentRecord } from '@/lib/adaptive/recommender';
@@ -31,7 +32,7 @@ export const MyDataLab: React.FC = () => {
 
   const initialPreset = presetParam && BENCHMARK_DATASETS[presetParam] ? presetParam : 'irisSubset';
 
-  const [selectedPreset, setSelectedPreset] = useState<keyof typeof BENCHMARK_DATASETS>(initialPreset);
+  const [selectedPreset, setSelectedPreset] = useState<keyof typeof BENCHMARK_DATASETS | 'custom'>(initialPreset);
   const [datasetRows, setDatasetRows] = useState<Record<string, any>[]>(BENCHMARK_DATASETS[initialPreset].rows);
   const [datasetName, setDatasetName] = useState<string>(BENCHMARK_DATASETS[initialPreset].name);
   const [selectedTask, setSelectedTask] = useState<'clustering' | 'regression'>(BENCHMARK_DATASETS[initialPreset].task);
@@ -40,21 +41,22 @@ export const MyDataLab: React.FC = () => {
     BENCHMARK_DATASETS[initialPreset].columns.filter((c) => c !== BENCHMARK_DATASETS[initialPreset].target)
   );
 
-  useEffect(() => {
-    if (presetParam && BENCHMARK_DATASETS[presetParam]) {
-      handlePresetChange(presetParam);
-    }
-  }, [presetParam]);
-
   // Preprocessing Settings
   const [scalingMethod, setScalingMethod] = useState<'none' | 'standard' | 'minmax'>('standard');
   const [imputationMethod, setImputationMethod] = useState<'mean' | 'drop'>('mean');
   const [splitRatio, setSplitRatio] = useState<number>(0.8);
 
-  // Training & Output
+  // Training, Error & Output
   const [isTraining, setIsTraining] = useState<boolean>(false);
   const [trainingResult, setTrainingResult] = useState<any>(null);
+  const [executionError, setExecutionError] = useState<string | null>(null);
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (presetParam && BENCHMARK_DATASETS[presetParam]) {
+      handlePresetChange(presetParam);
+    }
+  }, [presetParam]);
 
   // Quality check
   const columns = Object.keys(datasetRows[0] || {});
@@ -73,6 +75,7 @@ export const MyDataLab: React.FC = () => {
     setTargetColumn(data.target);
     setSelectedFeatures(data.columns.filter((c) => c !== data.target));
     setTrainingResult(null);
+    setExecutionError(null);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,74 +86,218 @@ export const MyDataLab: React.FC = () => {
     reader.onload = (event) => {
       try {
         const text = event.target?.result as string;
-        const lines = text.trim().split('\n');
-        if (lines.length < 2) return;
-
-        const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''));
-        const rows: Record<string, any>[] = [];
-
-        for (let i = 1; i < lines.length; i++) {
-          const vals = lines[i].split(',').map((v) => v.trim().replace(/^"|"$/g, ''));
-          const rowObj: Record<string, any> = {};
-          headers.forEach((h, hIdx) => {
-            const v = vals[hIdx];
-            rowObj[h] = !isNaN(Number(v)) && v !== '' ? Number(v) : v;
-          });
-          rows.push(rowObj);
+        const parsed = parseCSV(text);
+        if (parsed.rows.length === 0) {
+          alert('CSV file appears empty or unparseable.');
+          return;
         }
 
-        setDatasetRows(rows);
+        setDatasetRows(parsed.rows);
         setDatasetName(file.name);
+        setSelectedPreset('custom');
+
+        // Analyze columns to auto-select sensible numerical defaults
+        const sample = parsed.rows.slice(0, 50);
+        const numericCols = parsed.headers.filter((h) => {
+          let numCount = 0;
+          for (const row of sample) {
+            const v = row[h];
+            if (typeof v === 'number' && !isNaN(v)) numCount++;
+          }
+          return numCount >= sample.length * 0.5;
+        });
+
+        if (numericCols.length >= 2) {
+          setSelectedFeatures([numericCols[0], numericCols[1]]);
+          setTargetColumn(numericCols[1]);
+        } else if (numericCols.length === 1) {
+          setSelectedFeatures([numericCols[0], parsed.headers.find((h) => h !== numericCols[0]) || numericCols[0]]);
+          setTargetColumn(numericCols[0]);
+        } else {
+          setSelectedFeatures(parsed.headers.slice(0, 2));
+          setTargetColumn(parsed.headers[0]);
+        }
+
         setTrainingResult(null);
+        setExecutionError(null);
       } catch (err) {
-        alert('Failed to parse CSV file. Ensure standard comma-separated format.');
+        alert('Failed to parse CSV file. Ensure valid comma-separated format.');
       }
     };
     reader.readAsText(file);
   };
 
   const runModelOnUserData = () => {
+    setExecutionError(null);
     setIsTraining(true);
+
     setTimeout(() => {
-      if (selectedTask === 'clustering') {
+      try {
         const featX = selectedFeatures[0] || columns[0];
-        const featY = selectedFeatures[1] || columns[1] || columns[0];
+        const featY = selectedTask === 'clustering' ? selectedFeatures[1] || columns[1] || columns[0] : targetColumn;
 
-        const pts = datasetRows.map((r, i) => ({
-          id: `pt-${i}`,
-          x: Number(r[featX]) * 60 + 50,
-          y: Number(r[featY]) * 60 + 50,
-        }));
+        if (!featX || !featY) {
+          setExecutionError('Please select both feature variables.');
+          setIsTraining(false);
+          return;
+        }
 
-        const centroids = initializeCentroidsKMeansPlusPlus(pts, 3, 42);
-        const trace = runFullKMeansTrace(pts, centroids, 10);
-        const lastStep = trace[trace.length - 1];
+        // Validate that selected features are numerical
+        const colMetaX = summaryColumns.find((c) => c.name === featX);
+        const colMetaY = summaryColumns.find((c) => c.name === featY);
 
-        setTrainingResult({
-          type: 'clustering',
-          inertia: Math.round(lastStep.inertia),
-          iterations: lastStep.iteration,
-          pointsCount: pts.length,
-          k: 3,
-        });
-      } else {
-        const featX = selectedFeatures[0] || columns[0];
-        const pts = datasetRows.map((r, i) => ({
-          id: `pt-${i}`,
-          x: Number(r[featX]),
-          y: Number(r[targetColumn]),
-        }));
-        const ols = computeOLS(pts);
-        setTrainingResult({
-          type: 'regression',
-          mse: ols.mse,
-          r2: ols.r2,
-          slope: ols.slope,
-          intercept: ols.intercept,
-        });
+        if (colMetaX?.type === 'categorical' || colMetaY?.type === 'categorical') {
+          const nonNum = colMetaX?.type === 'categorical' ? featX : featY;
+          setExecutionError(
+            `Cannot compute mathematical model: feature "${nonNum}" is non-numeric text. K-Means Voronoi and OLS regression require quantitative numerical features (x, y ∈ ℝ). Please select numeric columns (tagged with [NUM]).`
+          );
+          setIsTraining(false);
+          return;
+        }
+
+        // Step 1: Missing value imputation & extraction
+        let cleanRows: { x: number; y: number }[] = [];
+
+        if (imputationMethod === 'drop') {
+          for (const r of datasetRows) {
+            const vx = r[featX];
+            const vy = r[featY];
+            if (
+              vx !== null &&
+              vx !== undefined &&
+              vx !== '' &&
+              !isNaN(Number(vx)) &&
+              vy !== null &&
+              vy !== undefined &&
+              vy !== '' &&
+              !isNaN(Number(vy))
+            ) {
+              cleanRows.push({ x: Number(vx), y: Number(vy) });
+            }
+          }
+        } else {
+          // Mean imputation
+          const validX = datasetRows
+            .map((r) => r[featX])
+            .filter((v) => v !== null && v !== undefined && v !== '' && !isNaN(Number(v)))
+            .map(Number);
+          const validY = datasetRows
+            .map((r) => r[featY])
+            .filter((v) => v !== null && v !== undefined && v !== '' && !isNaN(Number(v)))
+            .map(Number);
+
+          const meanX = validX.length > 0 ? validX.reduce((a, b) => a + b, 0) / validX.length : 0;
+          const meanY = validY.length > 0 ? validY.reduce((a, b) => a + b, 0) / validY.length : 0;
+
+          for (const r of datasetRows) {
+            const vx = r[featX];
+            const vy = r[featY];
+            const x =
+              vx !== null && vx !== undefined && vx !== '' && !isNaN(Number(vx)) ? Number(vx) : meanX;
+            const y =
+              vy !== null && vy !== undefined && vy !== '' && !isNaN(Number(vy)) ? Number(vy) : meanY;
+            cleanRows.push({ x, y });
+          }
+        }
+
+        if (cleanRows.length < 3) {
+          setExecutionError(
+            `Insufficient valid observations after imputation (${cleanRows.length} points). Minimum 3 points required.`
+          );
+          setIsTraining(false);
+          return;
+        }
+
+        // Downsample for interactive client performance if dataset is massive (e.g. > 1000 rows)
+        const totalSampledCount = cleanRows.length;
+        if (cleanRows.length > 1000) {
+          const stride = Math.ceil(cleanRows.length / 800);
+          cleanRows = cleanRows.filter((_, idx) => idx % stride === 0);
+        }
+
+        // Step 2: Feature Scaling
+        let scaledRows = cleanRows;
+        if (scalingMethod === 'standard') {
+          const meanX = cleanRows.reduce((acc, p) => acc + p.x, 0) / cleanRows.length;
+          const meanY = cleanRows.reduce((acc, p) => acc + p.y, 0) / cleanRows.length;
+          const stdX =
+            Math.sqrt(cleanRows.reduce((acc, p) => acc + (p.x - meanX) ** 2, 0) / cleanRows.length) || 1;
+          const stdY =
+            Math.sqrt(cleanRows.reduce((acc, p) => acc + (p.y - meanY) ** 2, 0) / cleanRows.length) || 1;
+
+          scaledRows = cleanRows.map((p) => ({
+            x: (p.x - meanX) / stdX,
+            y: (p.y - meanY) / stdY,
+          }));
+        } else if (scalingMethod === 'minmax') {
+          const minX = Math.min(...cleanRows.map((p) => p.x));
+          const maxX = Math.max(...cleanRows.map((p) => p.x));
+          const minY = Math.min(...cleanRows.map((p) => p.y));
+          const maxY = Math.max(...cleanRows.map((p) => p.y));
+          const rangeX = maxX - minX || 1;
+          const rangeY = maxY - minY || 1;
+
+          scaledRows = cleanRows.map((p) => ({
+            x: (p.x - minX) / rangeX,
+            y: (p.y - minY) / rangeY,
+          }));
+        }
+
+        if (selectedTask === 'clustering') {
+          // Normalize points to standard visual canvas coordinates [30, 270]
+          const minX = Math.min(...scaledRows.map((p) => p.x));
+          const maxX = Math.max(...scaledRows.map((p) => p.x));
+          const minY = Math.min(...scaledRows.map((p) => p.y));
+          const maxY = Math.max(...scaledRows.map((p) => p.y));
+          const rangeX = maxX - minX || 1;
+          const rangeY = maxY - minY || 1;
+
+          const pts = scaledRows.map((p, i) => ({
+            id: `pt-${i}`,
+            x: ((p.x - minX) / rangeX) * 240 + 30,
+            y: ((p.y - minY) / rangeY) * 240 + 30,
+          }));
+
+          const centroids = initializeCentroidsKMeansPlusPlus(pts, 3, 42);
+          const trace = runFullKMeansTrace(pts, centroids, 10);
+          const lastStep = trace[trace.length - 1];
+
+          setTrainingResult({
+            type: 'clustering',
+            inertia: Math.round(lastStep.inertia),
+            iterations: lastStep.iteration,
+            pointsCount: pts.length,
+            totalRows: totalSampledCount,
+            k: 3,
+            featX,
+            featY,
+          });
+        } else {
+          // Regression OLS
+          const pts = scaledRows.map((p, i) => ({
+            id: `pt-${i}`,
+            x: p.x,
+            y: p.y,
+          }));
+          const ols = computeOLS(pts);
+          setTrainingResult({
+            type: 'regression',
+            mse: ols.mse,
+            r2: ols.r2,
+            slope: ols.slope,
+            intercept: ols.intercept,
+            pointsCount: pts.length,
+            totalRows: totalSampledCount,
+            featX,
+            featY,
+          });
+        }
+      } catch (err: any) {
+        setExecutionError(err?.message || 'Error executing mathematical model on data.');
+      } finally {
+        setIsTraining(false);
       }
-      setIsTraining(false);
-    }, 400);
+    }, 300);
   };
 
   const handleSaveUserDataExperiment = () => {
@@ -223,7 +370,7 @@ export const MyDataLab: React.FC = () => {
       {/* Dataset Selector Strip */}
       <div className="flex items-center gap-2 p-2.5 bg-[#E8E1D3] border-[1.5px] border-[#1A1715]">
         <span className="font-mono text-[10px] uppercase font-bold text-[#5C544B]">
-          PRESET BENCHMARKS:
+          DATASET PRESETS:
         </span>
         <button
           onClick={() => handlePresetChange('irisSubset')}
@@ -241,6 +388,11 @@ export const MyDataLab: React.FC = () => {
         >
           STUDENT STUDY VS EXAM
         </button>
+        {selectedPreset === 'custom' && (
+          <span className="font-mono text-xs font-bold px-2.5 py-1 border-[1px] border-[#1A1715] bg-[#E28C05] text-[#1A1715]">
+            USER FILE: {datasetName.toUpperCase()}
+          </span>
+        )}
       </div>
 
       {/* Grid: Dataset Inspection & Data Quality Assistant */}
@@ -262,11 +414,25 @@ export const MyDataLab: React.FC = () => {
                 <thead className="bg-[#E8E1D3] text-[#1A1715] border-b border-[#1A1715] sticky top-0">
                   <tr>
                     <th className="p-2 border-r border-[#1A1715]">#</th>
-                    {columns.map((col) => (
-                      <th key={col} className="p-2 border-r border-[#1A1715] uppercase">
-                        {col}
-                      </th>
-                    ))}
+                    {columns.map((col) => {
+                      const meta = summaryColumns.find((c) => c.name === col);
+                      return (
+                        <th key={col} className="p-2 border-r border-[#1A1715] uppercase">
+                          <div className="flex items-center gap-1">
+                            <span>{col}</span>
+                            <span
+                              className={`text-[9px] px-1 py-0.2 border ${
+                                meta?.type === 'numeric'
+                                  ? 'border-[#1848B8] text-[#1848B8] bg-[#1848B8]/10'
+                                  : 'border-[#5C544B] text-[#5C544B] bg-[#FAF7F0]'
+                              }`}
+                            >
+                              {meta?.type === 'numeric' ? 'NUM' : 'TXT'}
+                            </span>
+                          </div>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#D8CFC0] bg-[#FAF7F0]">
@@ -276,7 +442,7 @@ export const MyDataLab: React.FC = () => {
                         {rIdx + 1}
                       </td>
                       {columns.map((col) => (
-                        <td key={col} className="p-2 border-r border-[#D8CFC0] tnum">
+                        <td key={col} className="p-2 border-r border-[#D8CFC0] tnum truncate max-w-[140px]" title={String(row[col])}>
                           {String(row[col])}
                         </td>
                       ))}
@@ -286,8 +452,68 @@ export const MyDataLab: React.FC = () => {
               </table>
             </div>
 
-            {/* Preprocessing Toolbar */}
+            {/* Feature Selection Grid */}
             <div className="mt-4 pt-3 border-t border-[#D8CFC0] grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono text-xs">
+              <div>
+                <label className="block text-[#5C544B] uppercase font-bold text-[10px] mb-1">
+                  {selectedTask === 'clustering' ? 'FEATURE 1 (X-AXIS):' : 'INDEPENDENT FEATURE (X):'}
+                </label>
+                <select
+                  value={selectedFeatures[0] || ''}
+                  onChange={(e) => setSelectedFeatures([e.target.value, selectedFeatures[1] || ''])}
+                  className="w-full p-1.5 bg-[#FAF7F0] border border-[#1A1715] text-[#1A1715]"
+                >
+                  {columns.map((col) => {
+                    const meta = summaryColumns.find((c) => c.name === col);
+                    return (
+                      <option key={col} value={col}>
+                        {col} [{meta?.type === 'numeric' ? 'NUMERIC' : 'TEXT'}]
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[#5C544B] uppercase font-bold text-[10px] mb-1">
+                  {selectedTask === 'clustering' ? 'FEATURE 2 (Y-AXIS):' : 'TARGET VARIABLE (Y):'}
+                </label>
+                {selectedTask === 'clustering' ? (
+                  <select
+                    value={selectedFeatures[1] || ''}
+                    onChange={(e) => setSelectedFeatures([selectedFeatures[0] || '', e.target.value])}
+                    className="w-full p-1.5 bg-[#FAF7F0] border border-[#1A1715] text-[#1A1715]"
+                  >
+                    {columns.map((col) => {
+                      const meta = summaryColumns.find((c) => c.name === col);
+                      return (
+                        <option key={col} value={col}>
+                          {col} [{meta?.type === 'numeric' ? 'NUMERIC' : 'TEXT'}]
+                        </option>
+                      );
+                    })}
+                  </select>
+                ) : (
+                  <select
+                    value={targetColumn}
+                    onChange={(e) => setTargetColumn(e.target.value)}
+                    className="w-full p-1.5 bg-[#FAF7F0] border border-[#1A1715] text-[#1A1715]"
+                  >
+                    {columns.map((col) => {
+                      const meta = summaryColumns.find((c) => c.name === col);
+                      return (
+                        <option key={col} value={col}>
+                          {col} [{meta?.type === 'numeric' ? 'NUMERIC' : 'TEXT'}]
+                        </option>
+                      );
+                    })}
+                  </select>
+                )}
+              </div>
+            </div>
+
+            {/* Preprocessing Toolbar */}
+            <div className="mt-3 pt-3 border-t border-[#D8CFC0] grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono text-xs">
               <div>
                 <label className="block text-[#5C544B] uppercase font-bold text-[10px] mb-1">
                   FEATURE SCALING:
@@ -312,11 +538,19 @@ export const MyDataLab: React.FC = () => {
                   onChange={(e) => setImputationMethod(e.target.value as any)}
                   className="w-full p-1.5 bg-[#FAF7F0] border border-[#1A1715] text-[#1A1715]"
                 >
-                  <option value="mean">Mean Imputation</option>
-                  <option value="drop">Drop Rows with NaN</option>
+                  <option value="mean">Mean Imputation (Numeric Features)</option>
+                  <option value="drop">Drop Rows with Missing Values</option>
                 </select>
               </div>
             </div>
+
+            {/* Error Message Plate if any */}
+            {executionError && (
+              <div className="mt-3 p-3 bg-[#C83226]/10 border-[1.5px] border-[#C83226] font-mono text-xs text-[#C83226] flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{executionError}</span>
+              </div>
+            )}
 
             <div className="mt-4 flex items-center justify-between border-t border-[#D8CFC0] pt-3">
               <div className="flex items-center gap-2">
@@ -366,7 +600,7 @@ export const MyDataLab: React.FC = () => {
                 <span>Dataset passes all sanity checks. Zero missing values or zero-variance columns.</span>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
                 {warnings.map((w) => (
                   <div
                     key={w.id}
@@ -418,8 +652,18 @@ export const MyDataLab: React.FC = () => {
                       <span className="font-bold text-[#1A1715] tnum">{trainingResult.iterations}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#5C544B]">SAMPLES CLUSTERED:</span>
-                      <span className="font-bold text-[#33634B] tnum">{trainingResult.pointsCount}</span>
+                      <span className="text-[#5C544B]">FEATURES USED:</span>
+                      <span className="font-bold text-[#1A1715]">
+                        {trainingResult.featX} × {trainingResult.featY}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[#5C544B]">POINTS CLUSTERED:</span>
+                      <span className="font-bold text-[#33634B] tnum">
+                        {trainingResult.pointsCount}
+                        {trainingResult.totalRows > trainingResult.pointsCount &&
+                          ` (Sampled from ${trainingResult.totalRows})`}
+                      </span>
                     </div>
                   </>
                 ) : (
@@ -435,6 +679,12 @@ export const MyDataLab: React.FC = () => {
                     <div className="flex justify-between">
                       <span className="text-[#5C544B]">R² SCORE:</span>
                       <span className="font-bold text-[#33634B] tnum">{trainingResult.r2}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[#5C544B]">FEATURES:</span>
+                      <span className="font-bold text-[#1A1715]">
+                        {trainingResult.featX} → {trainingResult.featY}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-[#5C544B]">EQUATION:</span>
