@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { AnalogCard } from '@/components/ui/AnalogCard';
 import { AnalogButton } from '@/components/ui/AnalogButton';
 import { Badge } from '@/components/ui/Badge';
@@ -9,15 +11,40 @@ import { analyzeDatasetQuality } from '@/lib/datasets/dataQuality';
 import { runFullKMeansTrace, initializeCentroidsKMeansPlusPlus } from '@/lib/math/kmeans';
 import { computeOLS } from '@/lib/math/regression';
 import { saveExperimentRecord } from '@/lib/adaptive/recommender';
-import { Upload, Database, AlertTriangle, Play, CheckCircle2, Sliders } from 'lucide-react';
+import {
+  Upload,
+  Database,
+  AlertTriangle,
+  Play,
+  CheckCircle2,
+  Sliders,
+  ArrowRight,
+  GitCompare,
+  History,
+  Sparkles,
+} from 'lucide-react';
 
 export const MyDataLab: React.FC = () => {
-  const [selectedPreset, setSelectedPreset] = useState<keyof typeof BENCHMARK_DATASETS>('irisSubset');
-  const [datasetRows, setDatasetRows] = useState<Record<string, any>[]>(BENCHMARK_DATASETS.irisSubset.rows);
-  const [datasetName, setDatasetName] = useState<string>(BENCHMARK_DATASETS.irisSubset.name);
-  const [selectedTask, setSelectedTask] = useState<'clustering' | 'regression'>('clustering');
-  const [targetColumn, setTargetColumn] = useState<string>('species');
-  const [selectedFeatures, setSelectedFeatures] = useState<string[]>(['petal_length', 'petal_width']);
+  const searchParams = useSearchParams();
+  const presetParam = searchParams.get('preset') as keyof typeof BENCHMARK_DATASETS | null;
+  const fromParam = searchParams.get('from');
+
+  const initialPreset = presetParam && BENCHMARK_DATASETS[presetParam] ? presetParam : 'irisSubset';
+
+  const [selectedPreset, setSelectedPreset] = useState<keyof typeof BENCHMARK_DATASETS>(initialPreset);
+  const [datasetRows, setDatasetRows] = useState<Record<string, any>[]>(BENCHMARK_DATASETS[initialPreset].rows);
+  const [datasetName, setDatasetName] = useState<string>(BENCHMARK_DATASETS[initialPreset].name);
+  const [selectedTask, setSelectedTask] = useState<'clustering' | 'regression'>(BENCHMARK_DATASETS[initialPreset].task);
+  const [targetColumn, setTargetColumn] = useState<string>(BENCHMARK_DATASETS[initialPreset].target);
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>(
+    BENCHMARK_DATASETS[initialPreset].columns.filter((c) => c !== BENCHMARK_DATASETS[initialPreset].target)
+  );
+
+  useEffect(() => {
+    if (presetParam && BENCHMARK_DATASETS[presetParam]) {
+      handlePresetChange(presetParam);
+    }
+  }, [presetParam]);
 
   // Preprocessing Settings
   const [scalingMethod, setScalingMethod] = useState<'none' | 'standard' | 'minmax'>('standard');
@@ -86,7 +113,6 @@ export const MyDataLab: React.FC = () => {
     setIsTraining(true);
     setTimeout(() => {
       if (selectedTask === 'clustering') {
-        // Map first two selected features to 2D points
         const featX = selectedFeatures[0] || columns[0];
         const featY = selectedFeatures[1] || columns[1] || columns[0];
 
@@ -102,13 +128,12 @@ export const MyDataLab: React.FC = () => {
 
         setTrainingResult({
           type: 'clustering',
-          inertia: lastStep.inertia,
+          inertia: Math.round(lastStep.inertia),
           iterations: lastStep.iteration,
           pointsCount: pts.length,
           k: 3,
         });
       } else {
-        // Regression
         const featX = selectedFeatures[0] || columns[0];
         const pts = datasetRows.map((r, i) => ({
           id: `pt-${i}`,
@@ -134,20 +159,43 @@ export const MyDataLab: React.FC = () => {
       name: `User Run: ${datasetName}`,
       datasetName,
       datasetFingerprint: `user-data-${datasetRows.length}r`,
-      algorithm: selectedTask === 'clustering' ? 'K-Means' : 'Linear Regression OLS',
+      algorithm: selectedTask === 'clustering' ? 'K-Means (Lloyd)' : 'Linear Regression OLS',
       taskType: selectedTask,
       hyperparameters: { scaling: scalingMethod, imputation: imputationMethod, features: selectedFeatures },
       metrics: trainingResult,
       runtimeMs: 18.2,
       warnings: warnings.map((w) => w.title),
-      notes: `Executed in My Data Lab on ${datasetRows.length} rows.`,
+      notes: `Executed in My Data Lab on ${datasetRows.length} observations. Scaling: ${scalingMethod}.`,
     });
     setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2000);
+    setTimeout(() => setSavedSuccess(false), 2500);
   };
 
   return (
     <div className="space-y-4">
+      {/* Contextual Hand-off Banner from Lesson Funnel */}
+      {fromParam === 'kmeans' && (
+        <div className="p-3.5 bg-[#1848B8]/10 border-[1.5px] border-[#1848B8] font-mono text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-[2px_2px_0px_#1848B8]">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 bg-[#1848B8] shrink-0" />
+            <div>
+              <span className="font-bold text-[#1848B8] block">
+                STAGE 02 OF SCIENTIFIC INQUIRY // TRANSFERRED FROM K-MEANS LESSON
+              </span>
+              <span className="text-[#1A1715]">
+                You are applying Lloyd&apos;s algorithm to real Fisher Iris petal dimensions with standard preprocessing.
+              </span>
+            </div>
+          </div>
+          <Link
+            href="/compare?geometry=concentric&from=kmeans"
+            className="text-[11px] font-bold text-[#1848B8] underline hover:text-[#133aa0] shrink-0"
+          >
+            Skip to Stage 03: Compare →
+          </Link>
+        </div>
+      )}
+
       {/* Top Banner */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 p-4 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] shadow-[3px_3px_0px_#1A1715]">
         <div>
@@ -198,29 +246,35 @@ export const MyDataLab: React.FC = () => {
       {/* Grid: Dataset Inspection & Data Quality Assistant */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Left: Data Preview Table (7 cols) */}
-        <div className="lg:col-span-7 space-y-3">
+        <div className="lg:col-span-7 space-y-4">
           <AnalogCard
             variant="card"
-            headerEyebrow="DATA INSPECTION MATRIX"
-            headerTitle={`${datasetName.toUpperCase()} // ${datasetRows.length} OBSERVATIONS`}
+            headerEyebrow="RAW DATASET MATRIX"
+            headerTitle={`${datasetName.toUpperCase()} (${datasetRows.length} ROWS)`}
+            headerAction={
+              <Badge variant="neutral">
+                {columns.length} FEATURES
+              </Badge>
+            }
           >
-            {/* Table */}
-            <div className="overflow-x-auto max-h-72 border border-[#D8CFC0]">
-              <table className="w-full text-left font-mono text-xs">
-                <thead className="bg-[#E8E1D3] border-b border-[#1A1715] sticky top-0">
+            <div className="overflow-x-auto border border-[#1A1715] max-h-72">
+              <table className="w-full text-left font-mono text-xs border-collapse">
+                <thead className="bg-[#E8E1D3] text-[#1A1715] border-b border-[#1A1715] sticky top-0">
                   <tr>
-                    <th className="p-2 border-r border-[#D8CFC0]">#</th>
+                    <th className="p-2 border-r border-[#1A1715]">#</th>
                     {columns.map((col) => (
-                      <th key={col} className="p-2 border-r border-[#D8CFC0] uppercase font-bold">
+                      <th key={col} className="p-2 border-r border-[#1A1715] uppercase">
                         {col}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#D8CFC0]">
-                  {datasetRows.slice(0, 8).map((row, rIdx) => (
-                    <tr key={rIdx} className="hover:bg-[#FAF7F0]">
-                      <td className="p-2 border-r border-[#D8CFC0] text-[#948B7D] tnum">{rIdx + 1}</td>
+                <tbody className="divide-y divide-[#D8CFC0] bg-[#FAF7F0]">
+                  {datasetRows.slice(0, 10).map((row, rIdx) => (
+                    <tr key={rIdx} className="hover:bg-[#F4EFE4]">
+                      <td className="p-2 border-r border-[#D8CFC0] text-[#948B7D] font-bold">
+                        {rIdx + 1}
+                      </td>
                       {columns.map((col) => (
                         <td key={col} className="p-2 border-r border-[#D8CFC0] tnum">
                           {String(row[col])}
@@ -231,52 +285,36 @@ export const MyDataLab: React.FC = () => {
                 </tbody>
               </table>
             </div>
-            {datasetRows.length > 8 && (
-              <span className="font-mono text-[10px] text-[#948B7D] block mt-1.5">
-                Showing first 8 of {datasetRows.length} rows.
-              </span>
-            )}
-          </AnalogCard>
 
-          {/* Preprocessing Studio */}
-          <AnalogCard
-            variant="card"
-            headerEyebrow="DATA PREPROCESSING PIPELINE"
-            headerTitle="TRANSFORMATIONS & PARTITIONS"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 font-mono text-xs">
-              <div className="p-2.5 bg-[#E8E1D3]/50 border border-[#D8CFC0]">
-                <label className="font-bold text-[#1A1715] block mb-1">NUMERICAL SCALING</label>
+            {/* Preprocessing Toolbar */}
+            <div className="mt-4 pt-3 border-t border-[#D8CFC0] grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono text-xs">
+              <div>
+                <label className="block text-[#5C544B] uppercase font-bold text-[10px] mb-1">
+                  FEATURE SCALING:
+                </label>
                 <select
                   value={scalingMethod}
                   onChange={(e) => setScalingMethod(e.target.value as any)}
-                  className="w-full p-1 bg-[#FAF7F0] border border-[#1A1715] font-mono text-xs"
+                  className="w-full p-1.5 bg-[#FAF7F0] border border-[#1A1715] text-[#1A1715]"
                 >
-                  <option value="none">None (Raw Features)</option>
-                  <option value="standard">StandardScaler (z = (x - μ)/σ)</option>
-                  <option value="minmax">MinMaxScaler [0, 1]</option>
+                  <option value="none">None (Raw Coordinates)</option>
+                  <option value="standard">StandardScaler (z = (x - μ) / σ)</option>
+                  <option value="minmax">MinMaxScaler ([0, 1])</option>
                 </select>
               </div>
 
-              <div className="p-2.5 bg-[#E8E1D3]/50 border border-[#D8CFC0]">
-                <label className="font-bold text-[#1A1715] block mb-1">MISSING VALUE POLICY</label>
+              <div>
+                <label className="block text-[#5C544B] uppercase font-bold text-[10px] mb-1">
+                  MISSING VALUE IMPUTATION:
+                </label>
                 <select
                   value={imputationMethod}
                   onChange={(e) => setImputationMethod(e.target.value as any)}
-                  className="w-full p-1 bg-[#FAF7F0] border border-[#1A1715] font-mono text-xs"
+                  className="w-full p-1.5 bg-[#FAF7F0] border border-[#1A1715] text-[#1A1715]"
                 >
                   <option value="mean">Mean Imputation</option>
-                  <option value="drop">Drop Incomplete Rows</option>
+                  <option value="drop">Drop Rows with NaN</option>
                 </select>
-              </div>
-
-              <div className="p-2.5 bg-[#E8E1D3]/50 border border-[#D8CFC0]">
-                <label className="font-bold text-[#1A1715] block mb-1">TRAIN/TEST SPLIT</label>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="font-bold tnum">{(splitRatio * 100).toFixed(0)}% Train</span>
-                  <span className="text-[#948B7D]">/</span>
-                  <span className="text-[#5C544B] tnum">{((1 - splitRatio) * 100).toFixed(0)}% Test</span>
-                </div>
               </div>
             </div>
 
@@ -360,7 +398,7 @@ export const MyDataLab: React.FC = () => {
               headerTitle="TRAINING OUTCOME & METRICS"
               headerAction={
                 <AnalogButton variant="secondary" size="sm" onClick={handleSaveUserDataExperiment}>
-                  {savedSuccess ? 'SAVED!' : 'LOG EXPERIMENT'}
+                  {savedSuccess ? 'SAVED TO NOTEBOOK!' : 'LOG EXPERIMENT'}
                 </AnalogButton>
               }
             >
@@ -406,6 +444,30 @@ export const MyDataLab: React.FC = () => {
                     </div>
                   </>
                 )}
+              </div>
+
+              {/* Next Step in the Unbroken Scientific Funnel */}
+              <div className="mt-3 p-3 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] space-y-2 font-mono text-xs">
+                <span className="font-bold text-[#1848B8] block text-[11px] uppercase">
+                  STEP 3 OF BENCHMARK LOOP: FAIR MULTI-MODEL COMPARISON
+                </span>
+                <p className="text-[11px] text-[#5C544B] leading-relaxed">
+                  Now subject this partition to non-convex topological stress tests against DBSCAN and Agglomerative Hierarchical clustering.
+                </p>
+                <div className="flex flex-col gap-2 pt-1">
+                  <Link href="/compare?geometry=concentric&from=datalab">
+                    <button className="w-full py-1.5 px-3 bg-[#1848B8] text-white font-bold uppercase text-[11px] border-[1.5px] border-[#1A1715] shadow-[2px_2px_0px_#1A1715] flex items-center justify-center gap-1.5 hover:bg-[#133aa0]">
+                      <GitCompare className="w-3.5 h-3.5" />
+                      <span>COMPARE WITH DBSCAN & HIERARCHICAL →</span>
+                    </button>
+                  </Link>
+                  <Link href="/history">
+                    <button className="w-full py-1 px-3 bg-[#FAF7F0] text-[#1A1715] font-bold uppercase text-[10px] border border-[#1A1715] hover:bg-[#E8E1D3] flex items-center justify-center gap-1.5">
+                      <History className="w-3 h-3" />
+                      <span>VIEW AUDIT LOG IN EXPERIMENT NOTEBOOK</span>
+                    </button>
+                  </Link>
+                </div>
               </div>
             </AnalogCard>
           )}

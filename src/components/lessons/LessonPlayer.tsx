@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { AnalogCard } from '@/components/ui/AnalogCard';
 import { AnalogButton } from '@/components/ui/AnalogButton';
 import { FormulaPlate } from '@/components/ui/FormulaPlate';
@@ -10,13 +11,28 @@ import { Badge } from '@/components/ui/Badge';
 import { LESSONS_REGISTRY } from '@/lib/curriculum/lessonsData';
 import { recordConceptAttempt } from '@/lib/adaptive/recommender';
 import { MISCONCEPTIONS_CATALOG } from '@/lib/adaptive/misconceptions';
-import { ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Sparkles, BookOpen } from 'lucide-react';
+import { isBookmarked, toggleBookmark } from '@/lib/adaptive/bookmarks';
+import { LessonMiniSandbox } from './LessonMiniSandbox';
+import {
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
+  AlertCircle,
+  Bookmark,
+  ArrowRight,
+  Database,
+  GitCompare,
+  Sliders,
+  Sparkles,
+  BookOpen,
+} from 'lucide-react';
 
 interface LessonPlayerProps {
   lessonId?: string;
 }
 
 export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'kmeans' }) => {
+  const router = useRouter();
   const lesson = LESSONS_REGISTRY[lessonId] || LESSONS_REGISTRY.kmeans;
   const [currentStepIdx, setCurrentStepIdx] = useState<number>(0);
 
@@ -28,6 +44,18 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'kmeans' 
   const [quizAnswers, setQuizAnswers] = useState<Record<string, number>>({});
   const [quizSubmitted, setQuizSubmitted] = useState<Record<string, boolean>>({});
   const [flaggedMisconceptions, setFlaggedMisconceptions] = useState<string[]>([]);
+
+  // Bookmark state
+  const [bookmarked, setBookmarked] = useState<boolean>(false);
+
+  useEffect(() => {
+    setBookmarked(isBookmarked(lesson.id));
+  }, [lesson.id]);
+
+  const handleToggleBookmark = () => {
+    const nextState = toggleBookmark(lesson.id);
+    setBookmarked(nextState);
+  };
 
   const currentStep = lesson.steps[currentStepIdx] || lesson.steps[0];
   const totalSteps = lesson.steps.length;
@@ -46,7 +74,12 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'kmeans' 
     }
   };
 
-  const handleQuizAnswer = (qId: string, optIdx: number, correctIdx: number, misconceptionMap: Record<number, string>) => {
+  const handleQuizAnswer = (
+    qId: string,
+    optIdx: number,
+    correctIdx: number,
+    misconceptionMap: Record<number, string>
+  ) => {
     setQuizAnswers((prev) => ({ ...prev, [qId]: optIdx }));
     setQuizSubmitted((prev) => ({ ...prev, [qId]: true }));
 
@@ -56,8 +89,10 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'kmeans' 
       setFlaggedMisconceptions((prev) => [...prev, miscId]);
     }
 
-    recordConceptAttempt('kmeans-clustering', isCorrect, miscId);
+    recordConceptAttempt(lesson.id, isCorrect, miscId);
   };
+
+  const allLessons = Object.values(LESSONS_REGISTRY);
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto">
@@ -70,15 +105,47 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'kmeans' 
               LESSON TRACK // {lesson.algorithmId.toUpperCase()}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 font-mono text-xs text-[#948B7D]">
+          <div className="flex items-center gap-3 font-mono text-xs text-[#948B7D]">
             <span>DURATION: {lesson.durationMinutes} MIN</span>
+            {/* Bookmark button */}
+            <button
+              onClick={handleToggleBookmark}
+              className={`flex items-center gap-1 px-2 py-0.5 border text-xs font-mono transition-all ${
+                bookmarked
+                  ? 'bg-[#E28C05] text-[#1A1715] border-[#1A1715] font-bold shadow-[1px_1px_0px_#1A1715]'
+                  : 'bg-[#FAF7F0] text-[#5C544B] border-[#D8CFC0] hover:text-[#1A1715]'
+              }`}
+              title={bookmarked ? 'Remove bookmark' : 'Bookmark this lesson'}
+            >
+              <Bookmark className={`w-3.5 h-3.5 ${bookmarked ? 'fill-[#1A1715]' : ''}`} />
+              <span>{bookmarked ? 'BOOKMARKED' : 'BOOKMARK'}</span>
+            </button>
           </div>
         </div>
 
-        <h1 className="font-mono text-xl sm:text-2xl font-black text-[#1A1715] tracking-tight">
-          {lesson.title}
-        </h1>
-        <p className="font-mono text-xs text-[#5C544B] mt-0.5">{lesson.subtitle}</p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h1 className="font-mono text-xl sm:text-2xl font-black text-[#1A1715] tracking-tight">
+              {lesson.title}
+            </h1>
+            <p className="font-mono text-xs text-[#5C544B] mt-0.5">{lesson.subtitle}</p>
+          </div>
+
+          {/* Quick Switcher dropdown */}
+          <div className="shrink-0">
+            <select
+              value={lesson.id}
+              onChange={(e) => router.push(`/lessons/${e.target.value}`)}
+              className="font-mono text-xs bg-[#FAF7F0] text-[#1A1715] border-[1.5px] border-[#1A1715] px-2 py-1 shadow-[1.5px_1.5px_0px_#1A1715] cursor-pointer"
+            >
+              {allLessons.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.algorithmId.toUpperCase()} (10 STEPS)
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
         {/* 10-Step Progress Strip */}
         <div className="mt-4 pt-3 border-t border-[#D8CFC0] flex items-center justify-between gap-1 overflow-x-auto pb-1">
@@ -115,6 +182,15 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'kmeans' 
           <div className="font-mono text-sm leading-relaxed text-[#1A1715] space-y-3">
             <p>{currentStep.contentMarkdown}</p>
           </div>
+
+          {/* Dynamic Mini-Sandbox: Render interactive widget on explore / under-the-hood / break-it */}
+          {(currentStep.phase === 'explore' ||
+            currentStep.phase === 'under-the-hood' ||
+            currentStep.phase === 'break-it') && (
+            <div className="my-4">
+              <LessonMiniSandbox algorithmId={lesson.algorithmId} />
+            </div>
+          )}
 
           {/* Optional Equation Plate */}
           {currentStep.equation && (
@@ -172,7 +248,7 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'kmeans' 
               <CodeReader
                 codeLines={currentStep.codeSnippet.python.split('\n')}
                 activeLineNumber={4}
-                title="PYTHON // LLOYD STEP KERNEL"
+                title={`PYTHON // ${lesson.algorithmId.toUpperCase()} NUMPY KERNEL`}
               />
               <div className="p-3 bg-[#E8E1D3]/60 border border-[#1A1715] font-mono text-xs text-[#5C544B]">
                 <span className="font-bold text-[#1A1715] block mb-0.5">SCIKIT-LEARN CONNECTION:</span>
@@ -253,27 +329,91 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'kmeans' 
             </div>
           )}
 
-          {/* Phase: Mastery & Next Step */}
+          {/* Phase: Step 10 Mastery & Synthesis (The Vertical Slice Hand-Off Funnel) */}
           {currentStep.phase === 'mastery' && (
-            <div className="p-4 bg-[#33634B]/10 border-[1.5px] border-[#33634B] space-y-3 font-mono text-xs">
-              <div className="flex items-center gap-2 font-bold text-[#33634B] text-sm">
-                <CheckCircle2 className="w-5 h-5" />
-                <span>LESSON COMPLETE // CONCEPT VALIDATED</span>
+            <div className="space-y-4 font-mono text-xs">
+              <div className="p-4 bg-[#33634B]/10 border-[1.5px] border-[#33634B] space-y-2">
+                <div className="flex items-center gap-2 font-bold text-[#33634B] text-sm">
+                  <CheckCircle2 className="w-5 h-5" />
+                  <span>LESSON COMPLETE // CONCEPT SYNTHESIS VALIDATED</span>
+                </div>
+                <p className="text-[#1A1715] leading-relaxed">
+                  You have mastered the inductive bias, mathematical equations, and failure modes of {lesson.title}.
+                  Now complete the scientific cycle: run the model on real user data, benchmark it against competing algorithms, and log your findings.
+                </p>
               </div>
-              <p className="text-[#1A1715] leading-relaxed">
-                You have synthesized the coordinate descent mechanism, the objective function, and identified the failure boundaries of K-Means.
-              </p>
-              <div className="pt-2 flex flex-wrap gap-2">
-                <Link href="/cinema">
-                  <AnalogButton variant="primary" size="sm">
-                    REPLAY IN CINEMA
-                  </AnalogButton>
-                </Link>
-                <Link href="/compare">
-                  <AnalogButton variant="secondary" size="sm">
-                    COMPARE WITH DBSCAN
-                  </AnalogButton>
-                </Link>
+
+              {/* End-to-End Vertical Loop Action Funnel */}
+              <div className="p-4 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] shadow-[2.5px_2.5px_0px_#1A1715] space-y-3">
+                <span className="font-bold text-[#C83226] block uppercase tracking-wider">
+                  ADVANCE TO NEXT SCIENTIFIC STAGE // CHOOSE YOUR EXPERIMENT PATH
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Step 1: Run on Real Data in My Data Lab */}
+                  <Link
+                    href={
+                      lesson.algorithmId === 'kmeans'
+                        ? '/datalab?preset=irisSubset&task=clustering&from=kmeans'
+                        : '/datalab?preset=studentExam&task=regression&from=' + lesson.algorithmId
+                    }
+                    className="p-3 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] hover:bg-[#F4EFE4] shadow-[2px_2px_0px_#1A1715] transition-all flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center gap-1.5 text-[#1848B8] font-bold mb-1">
+                        <Database className="w-4 h-4" />
+                        <span>STAGE 02: MY DATA LAB</span>
+                      </div>
+                      <p className="text-[11px] text-[#5C544B] leading-relaxed">
+                        {lesson.algorithmId === 'kmeans'
+                          ? "Apply Lloyd's algorithm to the real Fisher Iris dataset with custom scaling."
+                          : "Fit this model onto real tabular observations and inspect residual metrics."}
+                      </p>
+                    </div>
+                    <span className="text-[#1848B8] font-bold text-[11px] mt-3 flex items-center gap-1">
+                      RUN IN MY DATA LAB <ArrowRight className="w-3.5 h-3.5" />
+                    </span>
+                  </Link>
+
+                  {/* Step 2: Compare against competing models */}
+                  <Link
+                    href={
+                      lesson.algorithmId === 'kmeans'
+                        ? '/compare?geometry=concentric&from=kmeans'
+                        : '/lab?algo=' + lesson.algorithmId
+                    }
+                    className="p-3 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] hover:bg-[#F4EFE4] shadow-[2px_2px_0px_#1A1715] transition-all flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center gap-1.5 text-[#E28C05] font-bold mb-1">
+                        <GitCompare className="w-4 h-4" />
+                        <span>STAGE 03: COMPARISON STUDIO</span>
+                      </div>
+                      <p className="text-[11px] text-[#5C544B] leading-relaxed">
+                        {lesson.algorithmId === 'kmeans'
+                          ? "Benchmark K-Means vs DBSCAN vs Agglomerative on pathological concentric rings."
+                          : "Examine parameter sensitivity and frontier boundaries in the interactive lab."}
+                      </p>
+                    </div>
+                    <span className="text-[#E28C05] font-bold text-[11px] mt-3 flex items-center gap-1">
+                      OPEN BENCHMARK STUDIO <ArrowRight className="w-3.5 h-3.5" />
+                    </span>
+                  </Link>
+                </div>
+
+                {/* Replay in Algorithm Cinema */}
+                {lesson.algorithmId === 'kmeans' && (
+                  <div className="pt-2 border-t border-[#D8CFC0] flex items-center justify-between">
+                    <span className="text-[11px] text-[#5C544B]">
+                      Prefer visual exploration? Watch step-by-step centroid kinematics:
+                    </span>
+                    <Link href="/cinema">
+                      <AnalogButton variant="secondary" size="sm">
+                        ALGORITHM CINEMA →
+                      </AnalogButton>
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
           )}

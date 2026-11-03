@@ -15,19 +15,19 @@ Instead of passive slide decks or toy animations, every visual state is driven b
 
 ```mermaid
 flowchart TD
-    Dashboard["Learning Studio & Dashboard"] --> Lesson["10-Step Lesson Player"]
+    Dashboard["Learning Studio and Dashboard"] --> Lesson["10-Step Lesson Player"]
     Lesson --> Cinema["Algorithm Cinema (Scene Stepper)"]
     Lesson --> Lab["Interactive ML Lab (Potentiometers)"]
-    Lab --> MyDataLab["My Data Lab (Upload & Preprocess)"]
+    Lab --> MyDataLab["My Data Lab (Upload and Preprocess)"]
     MyDataLab --> Compare["Comparison Studio (Multi-Model)"]
     Compare --> Notebook["Experiment History Notebook"]
 
-    subgraph Engines ["Core Deterministic Engines"]
-        KMeansEng["Lloyd K-Means & Voronoi Engine"]
-        RegEng["OLS & First-Order Gradient Descent"]
-        ClassEng["Logistic Sigmoid & Decision Trees"]
-        PcaEng["Covariance & Spectral Eigenvectors"]
-        MetricEng["Silhouette, Inertia, R², Confusion Matrix"]
+    subgraph Engines["Core Deterministic Engines"]
+        KMeansEng["Lloyd K-Means and Voronoi Engine"]
+        RegEng["OLS and First-Order Gradient Descent"]
+        ClassEng["Logistic Sigmoid and Decision Trees"]
+        PcaEng["Covariance and Spectral Eigenvectors"]
+        MetricEng["Silhouette, Inertia, R2, Confusion Matrix"]
     end
 
     Cinema --> KMeansEng
@@ -40,6 +40,18 @@ flowchart TD
 ---
 
 ## 2. Implemented Modules
+
+### 0. Visual Concept Cards System
+- **Reusable 7-Card Explanatory Structure** for every machine learning concept:
+  1. **Concept in a Nutshell:** Simple intuition, why it exists, problem solved, primary formula plate, and inductive traits.
+  2. **How Does It Work:** 3–5 numbered mechanical pipeline steps with LaTeX equations and step tags.
+  3. **Visual Worked Example:** Relatable scenario, inputs/outputs breakdown, and **embedded interactive live simulation bench** with genuine mathematical calculations (OLS residual bench, Gradient descent loss bowl, Lloyd Voronoi clustering, Sigmoid thresholding, Decision tree Gini split optimizer, PCA orthogonal variance projection, Ensemble Condorcet majority voting bench).
+  4. **Types / Methods / Variants:** Comparative breakdown with semantic badge tags and ideal use cases.
+  5. **Real-Life Implementation:** Realistic scenarios, inputs/outputs/hyperparameter specifications, and copyable Python/scikit-learn code readers.
+  6. **Advantages, Limitations & Pathologies:** Strengths, bottlenecks, fundamental assumptions, and failure modes with concrete symptoms and remedies.
+  7. **Key Takeaways, Misconceptions & Active Recall:** Summary points, myth-vs-reality callout, interactive multiple-choice recall question with immediate validation, and direct pathways to the Interactive Lab and Cinema.
+- **Central Concept Registry & Archival Cards Hub (`/concepts`):** Search, category filtering, difficulty badges, bookmarks, and local progress tracking.
+- **Complete Phase-1 Concepts:** Linear Regression, Gradient Descent, K-Means Clustering, Logistic Regression, Decision Trees, Principal Component Analysis (PCA), and Ensemble Learning.
 
 ### 1. Algorithm Cinema
 - Scene-by-scene visual storytelling for K-Means clustering.

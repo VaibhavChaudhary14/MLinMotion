@@ -241,24 +241,24 @@ export default function LandingPage() {
               </h2>
             </div>
             <Link
-              href="/lessons"
+              href="/concepts"
               className="font-mono text-xs font-bold uppercase text-[#1848B8] hover:underline underline-offset-4 flex items-center gap-1 shrink-0"
             >
-              <span>View all algorithms →</span>
+              <span>View all Visual Concept Cards →</span>
             </Link>
           </div>
 
-          {/* 6 Technical Index Cards Grid */}
+          {/* 7 Technical Concept Index Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 font-mono">
             {/* 1. Linear Regression */}
             <div className="p-4 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] shadow-[2.5px_2.5px_0px_#1A1715] flex flex-col justify-between space-y-3">
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-[10px] text-[#948B7D]">
                   <span className="uppercase font-bold text-[#1848B8]">SUPERVISED</span>
-                  <span>INDEX 01</span>
+                  <span>CARD 01</span>
                 </div>
                 <h3 className="text-sm font-bold text-[#1A1715]">Linear Regression</h3>
-                <p className="text-xs text-[#5C544B] leading-snug">Find the line that best fits the data.</p>
+                <p className="text-xs text-[#5C544B] leading-snug">Fit a line. Understand residuals. Predict continuous values.</p>
               </div>
 
               {/* Thumbnail */}
@@ -268,10 +268,10 @@ export default function LandingPage() {
 
               <div className="pt-2 border-t border-[#D8CFC0]">
                 <Link
-                  href="/lab"
+                  href="/concepts/linear-regression"
                   className="text-[11px] font-bold text-[#1A1715] hover:text-[#C83226] uppercase flex items-center justify-between group"
                 >
-                  <span>Explore concept</span>
+                  <span>Open Concept Deck</span>
                   <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </div>
@@ -282,10 +282,10 @@ export default function LandingPage() {
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-[10px] text-[#948B7D]">
                   <span className="uppercase font-bold text-[#C83226]">OPTIMIZATION</span>
-                  <span>INDEX 02</span>
+                  <span>CARD 02</span>
                 </div>
                 <h3 className="text-sm font-bold text-[#1A1715]">Gradient Descent</h3>
-                <p className="text-xs text-[#5C544B] leading-snug">Watch optimization move toward a solution.</p>
+                <p className="text-xs text-[#5C544B] leading-snug">Watch parameters move toward lower loss along the surface.</p>
               </div>
 
               {/* Thumbnail */}
@@ -295,10 +295,10 @@ export default function LandingPage() {
 
               <div className="pt-2 border-t border-[#D8CFC0]">
                 <Link
-                  href="/lab"
+                  href="/concepts/gradient-descent"
                   className="text-[11px] font-bold text-[#1A1715] hover:text-[#C83226] uppercase flex items-center justify-between group"
                 >
-                  <span>Explore concept</span>
+                  <span>Open Concept Deck</span>
                   <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </div>
@@ -308,11 +308,11 @@ export default function LandingPage() {
             <div className="p-4 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] shadow-[2.5px_2.5px_0px_#1A1715] flex flex-col justify-between space-y-3">
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-[10px] text-[#948B7D]">
-                  <span className="uppercase font-bold text-[#1848B8]">UNSUPERVISED</span>
-                  <span>INDEX 03</span>
+                  <span className="uppercase font-bold text-[#1848B8]">CLUSTERING</span>
+                  <span>CARD 03</span>
                 </div>
-                <h3 className="text-sm font-bold text-[#1A1715]">K-means</h3>
-                <p className="text-xs text-[#5C544B] leading-snug">Discover how clusters form.</p>
+                <h3 className="text-sm font-bold text-[#1A1715]">K-means Clustering</h3>
+                <p className="text-xs text-[#5C544B] leading-snug">Assign points. Update centroids. Repeat until convergence.</p>
               </div>
 
               {/* Thumbnail */}
@@ -322,10 +322,10 @@ export default function LandingPage() {
 
               <div className="pt-2 border-t border-[#D8CFC0]">
                 <Link
-                  href="/cinema"
+                  href="/concepts/kmeans"
                   className="text-[11px] font-bold text-[#1A1715] hover:text-[#C83226] uppercase flex items-center justify-between group"
                 >
-                  <span>Explore concept</span>
+                  <span>Open Concept Deck</span>
                   <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </div>
@@ -335,11 +335,11 @@ export default function LandingPage() {
             <div className="p-4 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] shadow-[2.5px_2.5px_0px_#1A1715] flex flex-col justify-between space-y-3">
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-[10px] text-[#948B7D]">
-                  <span className="uppercase font-bold text-[#1848B8]">CLASSIFICATION</span>
-                  <span>INDEX 04</span>
+                  <span className="uppercase font-bold text-[#6E3867]">CLASSIFICATION</span>
+                  <span>CARD 04</span>
                 </div>
                 <h3 className="text-sm font-bold text-[#1A1715]">Logistic Regression</h3>
-                <p className="text-xs text-[#5C544B] leading-snug">Explore probabilities and decision boundaries.</p>
+                <p className="text-xs text-[#5C544B] leading-snug">Sigmoid link function, calibrated odds, and decision boundaries.</p>
               </div>
 
               {/* Thumbnail */}
@@ -349,10 +349,10 @@ export default function LandingPage() {
 
               <div className="pt-2 border-t border-[#D8CFC0]">
                 <Link
-                  href="/lab"
+                  href="/concepts/logistic-regression"
                   className="text-[11px] font-bold text-[#1A1715] hover:text-[#C83226] uppercase flex items-center justify-between group"
                 >
-                  <span>Explore concept</span>
+                  <span>Open Concept Deck</span>
                   <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </div>
@@ -363,10 +363,10 @@ export default function LandingPage() {
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-[10px] text-[#948B7D]">
                   <span className="uppercase font-bold text-[#33634B]">NON-PARAMETRIC</span>
-                  <span>INDEX 05</span>
+                  <span>CARD 05</span>
                 </div>
                 <h3 className="text-sm font-bold text-[#1A1715]">Decision Trees</h3>
-                <p className="text-xs text-[#5C544B] leading-snug">See how data becomes a sequence of decisions.</p>
+                <p className="text-xs text-[#5C544B] leading-snug">Recursive orthogonal splits and Gini impurity reduction.</p>
               </div>
 
               {/* Thumbnail */}
@@ -376,10 +376,10 @@ export default function LandingPage() {
 
               <div className="pt-2 border-t border-[#D8CFC0]">
                 <Link
-                  href="/lab"
+                  href="/concepts/decision-trees"
                   className="text-[11px] font-bold text-[#1A1715] hover:text-[#C83226] uppercase flex items-center justify-between group"
                 >
-                  <span>Explore concept</span>
+                  <span>Open Concept Deck</span>
                   <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </div>
@@ -390,10 +390,10 @@ export default function LandingPage() {
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-[10px] text-[#948B7D]">
                   <span className="uppercase font-bold text-[#E28C05]">PROJECTION</span>
-                  <span>INDEX 06</span>
+                  <span>CARD 06</span>
                 </div>
-                <h3 className="text-sm font-bold text-[#1A1715]">PCA</h3>
-                <p className="text-xs text-[#5C544B] leading-snug">Watch high-dimensional data transform into fewer dimensions.</p>
+                <h3 className="text-sm font-bold text-[#1A1715]">Principal Component Analysis</h3>
+                <p className="text-xs text-[#5C544B] leading-snug">Orthogonal covariance eigenvectors and maximum variance retention.</p>
               </div>
 
               {/* Thumbnail */}
@@ -403,11 +403,33 @@ export default function LandingPage() {
 
               <div className="pt-2 border-t border-[#D8CFC0]">
                 <Link
-                  href="/lab"
+                  href="/concepts/pca"
                   className="text-[11px] font-bold text-[#1A1715] hover:text-[#C83226] uppercase flex items-center justify-between group"
                 >
-                  <span>Explore concept</span>
+                  <span>Open Concept Deck</span>
                   <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                </Link>
+              </div>
+            </div>
+
+            {/* 7. Ensemble Learning */}
+            <div className="p-4 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] shadow-[2.5px_2.5px_0px_#1A1715] flex flex-col justify-between space-y-3 sm:col-span-2 lg:col-span-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-[10px] text-[#948B7D]">
+                    <span className="uppercase font-bold text-[#C83226]">META-LEARNING</span>
+                    <span>CARD 07</span>
+                  </div>
+                  <h3 className="text-base font-bold text-[#1A1715]">Ensemble Learning: Forests, Boosting & Stacking</h3>
+                  <p className="text-xs text-[#5C544B] leading-snug">
+                    Combine diverse weak learners to reduce variance (Bagging) or bias (Boosting) via Condorcet majority consensus.
+                  </p>
+                </div>
+                <Link
+                  href="/concepts/ensemble-learning"
+                  className="px-4 py-2 bg-[#C83226] text-[#FAF7F0] font-bold text-xs uppercase tracking-wider border border-[#1A1715] shadow-[2px_2px_0px_#1A1715] hover:bg-[#b0291f] active:translate-x-[1px] active:translate-y-[1px] flex items-center gap-1.5 self-start sm:self-auto shrink-0"
+                >
+                  <span>Explore Ensemble Deck →</span>
                 </Link>
               </div>
             </div>
