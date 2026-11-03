@@ -4,7 +4,15 @@ export type AlgorithmId =
   | 'gradient-descent'
   | 'logistic-regression'
   | 'decision-trees'
-  | 'pca';
+  | 'pca'
+  | 'ml-foundations'
+  | 'data-literacy'
+  | 'math-for-ml'
+  | 'learning-problem'
+  | 'model-evaluation'
+  | 'model-comparison';
+
+export type CurriculumLayer = 'essential' | 'evaluation' | 'planned';
 
 export type ComparisonAlgorithmId =
   | 'kmeans'
@@ -147,6 +155,9 @@ export interface LessonStep {
 
 export interface Lesson {
   id: string;
+  stageNumber?: number;
+  stageCode?: string;
+  layer?: CurriculumLayer;
   algorithmId: AlgorithmId;
   title: string;
   subtitle: string;

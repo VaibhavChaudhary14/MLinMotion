@@ -133,6 +133,23 @@ export interface RecallQuestionSpec {
   explanation: string;
 }
 
+// -------------------------------------------------------------
+// Practical Implementation Challenge & 3 Core Questions
+// -------------------------------------------------------------
+export interface GoldenQuestionTriad {
+  whatIsIt: string;
+  whyDoesItWork: string;
+  whenToUseIt: string;
+}
+
+export interface PracticalChallengeSpec {
+  title: string;
+  goldenTriad: GoldenQuestionTriad;
+  taskInstruction: string;
+  hint: string;
+  solutionExplanation: string;
+}
+
 export interface NextConceptRef {
   id: string;
   title: string;
@@ -144,6 +161,7 @@ export interface ConceptTakeawaysCard {
   misconception: MisconceptionSpec;
   recallQuestion: RecallQuestionSpec;
   nextConcept?: NextConceptRef;
+  challenge?: PracticalChallengeSpec;
 }
 
 // -------------------------------------------------------------

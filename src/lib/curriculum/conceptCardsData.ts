@@ -244,6 +244,19 @@ print(f"Closed-form verification: b={theta_ols[0]:.2f}, w={theta_ols[1:].round(3
         whyNext:
           'When data scales to millions of samples or non-linear neural objectives, closed-form matrix inversion becomes computationally intractable O(d³). Gradient descent iteratively walks parameters toward minimal loss.',
       },
+      challenge: {
+        title: 'Analytical OLS vs Manual Fit',
+        goldenTriad: {
+          whatIsIt: 'Supervised regression fitting an optimal hyperplane to predict continuous numerical values.',
+          whyDoesItWork: 'Minimizes the sum of squared vertical residuals via convex optimization.',
+          whenToUseIt: 'Predicting continuous quantities when features have linear proportional relationships.',
+        },
+        taskInstruction:
+          'In the Interactive OLS Residual Bench, manually adjust the slope w and intercept b sliders to approximate the best fit line, then click "Snap to Analytical OLS".',
+        hint: 'Watch the Current Loss (MSE) counter. Can any manual configuration beat the analytical MSE of 23.36?',
+        solutionExplanation:
+          'Because Ordinary Least Squares loss is strictly convex quadratic, the normal equation w* = (X^T X)^(-1) X^T y mathematically guarantees the unique global minimum MSE. No manual heuristic can achieve lower error.',
+      },
     },
   },
 
@@ -278,7 +291,7 @@ print(f"Closed-form verification: b={theta_ols[0]:.2f}, w={theta_ols[1:].round(3
       keyCharacteristics: [
         'Universal optimization engine underlying Logistic Regression, SVMs, and Deep Learning',
         'Requires only first-order derivative computations (gradients), avoiding costly second-derivative Hessian matrices',
-        'Behavior dictated by learning rate α: too small yields slow crawl; too large causes catastrophic divergence',
+        'For quadratic loss J = 0.5(θ - 3.5)² + 1, convergence occurs for 0 < α < 2 (at α = 1 it hits optimum in 1 step; diverges when α > 2)',
       ],
     },
     howItWorks: {
@@ -480,6 +493,19 @@ print(f"Final Minimum Loss: J(w) = {compute_loss(w):.4f}")`,
         title: 'Logistic Regression & Classification',
         whyNext:
           'Now that you understand gradient optimization, see how it trains the non-linear cross-entropy loss function in binary classification.',
+      },
+      challenge: {
+        title: 'Critical Damping & Newton 1-Step Convergence',
+        goldenTriad: {
+          whatIsIt: 'Iterative first-order optimizer that updates parameters proportionally to the negative gradient.',
+          whyDoesItWork: 'Negative gradient points downhill; contraction factor is governed by (1 - α·L).',
+          whenToUseIt: 'When analytical matrix inversion is intractable (d > 10,000) or loss functions are non-linear.',
+        },
+        taskInstruction:
+          'In the Gradient Vector Stepping Engine, click the preset "② 1-Step Optimum (α=1.0)" and take one step. Then compare with "③ Damped Osc. (α=1.5)" and "④ Divergence (α=2.1)".',
+        hint: 'Observe the mathematical contraction equation: (θ_{t+1} - 3.5) = (1 - α)(θ_t - 3.5).',
+        solutionExplanation:
+          'For this quadratic objective with Hessian curvature L = 1.0, setting α = 1.0 yields contraction factor (1 - α) = 0, hitting the exact minimum θ* = 3.5 in one single step! For 1 < α < 2, the multiplier is between -1 and 0, creating damped oscillations that still converge. Divergence occurs strictly when α > 2.0 where |1 - α| > 1.',
       },
     },
   },
@@ -710,6 +736,19 @@ print(f"Silhouette Coefficient: {silhouette:.3f}")`,
         whyNext:
           'In high dimensions, Euclidean distance becomes uniform (curse of dimensionality). PCA projects high-dimensional data into low-dimensional orthogonal variance axes before clustering.',
       },
+      challenge: {
+        title: 'Monotonic Inertia Descent Verification',
+        goldenTriad: {
+          whatIsIt: 'Unsupervised partitioning algorithm segmenting data into K spherical Voronoi clusters.',
+          whyDoesItWork: 'Alternates between coordinate minimization over point assignments and centroid arithmetic means.',
+          whenToUseIt: 'Customer market segmentation, image quantization, and spatial partitioning with spherical convex clusters.',
+        },
+        taskInstruction:
+          'Step through Lloyd algorithm by alternating between "1. Assign Points" and "2. Update Centroids". Monitor the Total Inertia readout.',
+        hint: 'Does inertia ever increase between any two consecutive iterations?',
+        solutionExplanation:
+          'Inertia (Within-Cluster Sum of Squares) is mathematically proven to strictly descend or remain constant at every step of Lloyd coordinate descent. It terminates deterministically when zero points change cluster partitions.',
+      },
     },
   },
 
@@ -931,6 +970,19 @@ print(f"ROC-AUC Score: {auc:.3f}")`,
         whyNext:
           'When data relationships are fundamentally non-linear or rule-based, linear hyperplanes fail. Decision Trees partition space using orthogonal threshold splits.',
       },
+      challenge: {
+        title: 'Clinical Diagnostic Recall Tuning',
+        goldenTriad: {
+          whatIsIt: 'Supervised classification squashing linear log-odds into probabilities via sigmoid σ(z).',
+          whyDoesItWork: 'Sigmoid provides smooth, calibrated posterior class probabilities optimized via cross-entropy.',
+          whenToUseIt: 'Binary outcomes requiring calibrated risk scores (e.g. loan default, disease diagnosis).',
+        },
+        taskInstruction:
+          'In the Sigmoid Threshold Workbench, slide the decision threshold τ downward to achieve 100% Recall on the malignant biopsy test samples.',
+        hint: 'What happens to False Positives and Precision as threshold τ drops below 0.30?',
+        solutionExplanation:
+          'In oncology and critical screening, False Negatives (missing cancer) are fatal, so clinicians lower threshold τ (e.g. to 0.20) to guarantee 100% Recall. However, this introduces False Positives, depressing Precision. Decision thresholds in industry represent real-world cost-utility policies.',
+      },
     },
   },
 
@@ -1115,7 +1167,7 @@ print(f"Feature Importances: {tree.feature_importances_.round(3)}")`,
     takeaways: {
       takeaways: [
         'Decision Trees recursively split data using orthogonal axis-aligned threshold queries.',
-        'Splits are chosen greedily by maximizing Gini Impurity or Information Gain reduction.',
+        'Splits are chosen greedily by maximizing Gini Impurity Reduction (CART) or Shannon Information Gain (ID3).',
         'No feature normalization or scaling is ever required for tree-based algorithms.',
         'Single trees suffer from extreme high variance; they are the foundational weak learner for Random Forests and Boosting.',
       ],
@@ -1145,6 +1197,19 @@ print(f"Feature Importances: {tree.feature_importances_.round(3)}")`,
         title: 'Ensemble Learning: Forests & Boosting',
         whyNext:
           'Since individual decision trees suffer from high variance and greediness, Ensemble Learning combines hundreds of diverse trees (Random Forests & Gradient Boosting) to achieve state-of-the-art predictive power.',
+      },
+      challenge: {
+        title: 'Gini Impurity vs Shannon Entropy Equivalence',
+        goldenTriad: {
+          whatIsIt: 'Non-parametric supervised model recursively partitioning feature space into orthogonal hyper-rectangles.',
+          whyDoesItWork: 'Greedy threshold search maximizes purity drop at each branch.',
+          whenToUseIt: 'Tabular data with mixed data types and non-linear threshold rules where white-box rules are required.',
+        },
+        taskInstruction:
+          'In the Recursive Partitioning Bench, toggle the criterion between Gini Impurity (CART) and Shannon Entropy (ID3). Verify whether both criteria select the same optimal split threshold.',
+        hint: 'Check the threshold coordinate on the DTI axis where Gini Reduction and Information Gain hit their respective peaks.',
+        solutionExplanation:
+          'Both Gini Impurity Reduction and Shannon Information Gain select the exact same optimal threshold (t = 36%)! Gini operates in quadratic probability space without computing logarithms, making CART faster to train while arriving at identical boundary decisions.',
       },
     },
   },
@@ -1364,6 +1429,19 @@ print(f"Principal Eigenvector (PC1): {components[0].round(3)}")`,
         title: 'K-Means Clustering',
         whyNext:
           'PCA is frequently used as a preprocessing pipeline before K-Means to eliminate correlated noise and speed up Euclidean distance computations.',
+      },
+      challenge: {
+        title: 'Principal Eigenvector Angle Alignment',
+        goldenTriad: {
+          whatIsIt: 'Unsupervised linear transformation projecting data onto orthogonal maximum variance axes.',
+          whyDoesItWork: 'Eigenvectors of the sample covariance matrix diagonalize the covariance structure.',
+          whenToUseIt: 'High-dimensional data compression, multicollinearity removal, and 2D/3D visualization.',
+        },
+        taskInstruction:
+          'In the Orthogonal Variance Projection Bench, rotate the axis angle slider θ from 0° toward 90°. Locate the angle where Projected Variance reaches its absolute peak.',
+        hint: 'Click "Snap to PC1" to verify the exact eigenvector angle calculated from the covariance matrix.',
+        solutionExplanation:
+          'Projected variance peaks at θ ≈ 38°, aligning with the principal eigenvector (PC1) of the 2D sample covariance matrix. At this orientation, the perpendicular reconstruction error is simultaneously minimized.',
       },
     },
   },
@@ -1589,6 +1667,19 @@ for name, clf in models:
         title: 'Linear Regression',
         whyNext:
           'Return to first principles to understand how linear hypotheses form the foundation of continuous forecasting and generalized additive models.',
+      },
+      challenge: {
+        title: 'Correlated Error Failure Mode Audit',
+        goldenTriad: {
+          whatIsIt: 'Meta-learning paradigm strategically combining multiple individual models to reduce variance or bias.',
+          whyDoesItWork: 'Uncorrelated errors cancel out mathematically via Condorcet majority voting; Var(X̄) = ρ·σ² + ((1-ρ)/M)·σ².',
+          whenToUseIt: 'Tabular machine learning benchmarks and high-stakes fraud/churn systems where top predictive accuracy is required.',
+        },
+        taskInstruction:
+          'In the Model Diversity Testbench, switch from "Case A: Toy Demo" to "Case B: Realistic Audit". Inspect why majority voting fails on Samples #02, #05, and #08.',
+        hint: 'Look at the truth values vs model predictions when multiple models share the same inductive bias on deceptive outliers.',
+        solutionExplanation:
+          'Ensembles fail to fix mistakes when base models make correlated errors. If two or more models share the same systemic blind spot (e.g. Models A and B on Sample #02), majority vote reinforces the error rather than correcting it. Ensembling only succeeds when models are diverse (uncorrelated errors) and individually competent (accuracy > 50%).',
       },
     },
   },

@@ -36,40 +36,49 @@ export const CardNutshell: React.FC<CardNutshellProps> = ({
       </div>
 
       <div className="p-5 sm:p-6 space-y-5">
-        {/* Simple Definition */}
-        <div className="space-y-2">
-          <span className="font-mono text-[10px] uppercase font-bold tracking-wider text-[#C83226] block">
-            DEFINITIVE SPECIFICATION
-          </span>
-          <p className="font-mono text-sm sm:text-base font-bold text-[#1A1715] leading-relaxed">
+        {/* Defining Golden Triad: What is it? */}
+        <div className="p-4 bg-[#F4EFE4] border-[1.5px] border-[#1A1715] shadow-[2px_2px_0px_#1A1715] space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="w-5 h-5 bg-[#C83226] text-[#FAF7F0] font-mono text-[10px] font-black flex items-center justify-center border border-[#1A1715]">
+              01
+            </span>
+            <span className="font-mono text-[10px] uppercase font-black tracking-wider text-[#C83226]">
+              WHAT IS IT? (CORE DEFINITION & INTUITION)
+            </span>
+          </div>
+          <p className="font-mono text-sm sm:text-base font-bold text-[#1A1715] leading-relaxed pl-7">
             {data.definition}
           </p>
         </div>
 
-        {/* Why Exists & Problem Solved (Two Column Grid) */}
+        {/* Golden Triad Questions 02 and 03 (Two Column Grid) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-          {/* Why Does This Concept Exist? */}
-          <div className="p-3.5 bg-[#F4EFE4] border-[1.5px] border-[#1A1715] shadow-[1.5px_1.5px_0px_#1A1715] space-y-2">
-            <div className="flex items-center gap-1.5 text-[#1848B8]">
-              <HelpCircle className="w-3.5 h-3.5" />
-              <span className="font-mono text-[10px] uppercase font-black tracking-wider">
-                WHY DOES THIS CONCEPT EXIST?
+          {/* Why Does It Work? */}
+          <div className="p-4 bg-[#F4EFE4] border-[1.5px] border-[#1A1715] shadow-[2px_2px_0px_#1A1715] space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="w-5 h-5 bg-[#1848B8] text-[#FAF7F0] font-mono text-[10px] font-black flex items-center justify-center border border-[#1A1715]">
+                02
+              </span>
+              <span className="font-mono text-[10px] uppercase font-black tracking-wider text-[#1848B8]">
+                WHY DOES IT WORK? (UNDERLYING MECHANISM)
               </span>
             </div>
-            <p className="font-mono text-xs text-[#5C544B] leading-relaxed">
+            <p className="font-mono text-xs text-[#5C544B] leading-relaxed pl-7">
               {data.whyExists}
             </p>
           </div>
 
-          {/* What Problem Does It Solve? */}
-          <div className="p-3.5 bg-[#F4EFE4] border-[1.5px] border-[#1A1715] shadow-[1.5px_1.5px_0px_#1A1715] space-y-2">
-            <div className="flex items-center gap-1.5 text-[#33634B]">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="font-mono text-[10px] uppercase font-black tracking-wider">
-                WHAT PROBLEM DOES IT SOLVE?
+          {/* When Would I Actually Use It? */}
+          <div className="p-4 bg-[#F4EFE4] border-[1.5px] border-[#1A1715] shadow-[2px_2px_0px_#1A1715] space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="w-5 h-5 bg-[#33634B] text-[#FAF7F0] font-mono text-[10px] font-black flex items-center justify-center border border-[#1A1715]">
+                03
+              </span>
+              <span className="font-mono text-[10px] uppercase font-black tracking-wider text-[#33634B]">
+                WHEN WOULD I ACTUALLY USE IT? (APPLICABILITY)
               </span>
             </div>
-            <p className="font-mono text-xs text-[#5C544B] leading-relaxed">
+            <p className="font-mono text-xs text-[#5C544B] leading-relaxed pl-7">
               {data.problemSolved}
             </p>
           </div>

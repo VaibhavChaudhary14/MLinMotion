@@ -36,6 +36,7 @@ export const CardTakeaways: React.FC<CardTakeawaysProps> = ({
 }) => {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [hasAnswered, setHasAnswered] = useState<boolean>(false);
+  const [showChallengeSolution, setShowChallengeSolution] = useState<boolean>(false);
 
   const handleSelectOption = (idx: number) => {
     setSelectedOption(idx);
@@ -190,6 +191,56 @@ export const CardTakeaways: React.FC<CardTakeawaysProps> = ({
             </div>
           )}
         </div>
+
+        {/* Practical Hands-On Challenge Plate */}
+        {data.challenge && (
+          <div className="p-4 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] shadow-[2px_2px_0px_#1A1715] space-y-3">
+            <div className="flex items-center justify-between border-b border-[#D8CFC0] pb-2">
+              <div className="flex items-center gap-2 text-[#C83226]">
+                <FlaskConical className="w-4 h-4" />
+                <span className="font-mono text-[10px] uppercase font-black tracking-wider">
+                  PRACTICAL IMPLEMENTATION CHALLENGE: {data.challenge.title}
+                </span>
+              </div>
+              <span className="font-mono text-[9px] bg-[#E8E1D3] px-2 py-0.5 border border-[#1A1715] font-bold">
+                HANDS-ON LAB TASK
+              </span>
+            </div>
+
+            <div className="space-y-2 font-mono text-xs">
+              <div className="p-3 bg-[#F4EFE4] border border-[#1A1715] space-y-1">
+                <span className="font-bold text-[9px] uppercase tracking-wider text-[#1848B8] block">
+                  TASK INSTRUCTION:
+                </span>
+                <p className="text-[#1A1715] leading-relaxed">
+                  {data.challenge.taskInstruction}
+                </p>
+                <p className="text-[10px] text-[#5C544B] pt-1 italic">
+                  💡 Hint: {data.challenge.hint}
+                </p>
+              </div>
+
+              {/* Reveal Solution Button */}
+              <div className="pt-1">
+                <button
+                  onClick={() => setShowChallengeSolution(!showChallengeSolution)}
+                  className="px-2.5 py-1 bg-[#E8E1D3] text-[#1A1715] text-[10px] font-bold uppercase border border-[#1A1715] hover:bg-[#DDD5C5]"
+                >
+                  {showChallengeSolution ? 'Hide Solution Analysis' : 'Verify & Reveal Scientific Analysis →'}
+                </button>
+
+                {showChallengeSolution && (
+                  <div className="mt-2 p-3 bg-[#FAF7F0] border-l-2 border-[#33634B] space-y-1 text-[#5C544B] leading-relaxed">
+                    <span className="font-bold text-[9px] uppercase tracking-wider text-[#33634B] block">
+                      SCIENTIFIC EXPLANATION:
+                    </span>
+                    <p>{data.challenge.solutionExplanation}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Action Triggers: Mastered Toggle, Interactive Lab, Cinema, Next Concept */}
         <div className="pt-2 border-t border-[#D8CFC0] space-y-4">

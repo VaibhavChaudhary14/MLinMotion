@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { RefreshCw, Zap } from 'lucide-react';
+import { RefreshCw, Zap, Sliders, CheckCircle2 } from 'lucide-react';
 
 interface DataPoint {
   id: string;
@@ -30,8 +30,10 @@ export const InteractiveDecisionTree: React.FC = () => {
 
   // Interactive split threshold slider
   const [threshold, setThreshold] = useState<number>(36);
+  // Criterion toggle: Gini vs Entropy
+  const [criterion, setCriterion] = useState<'gini' | 'entropy'>('gini');
 
-  // Helper to compute Gini impurity for a set of points
+  // Gini Impurity: Gini(S) = 1 - (p1^2 + p0^2), bounded in [0, 0.5] for binary
   const calcGini = (subset: DataPoint[]) => {
     if (subset.length === 0) return 0;
     const p1 = subset.filter((p) => p.approved === 1).length / subset.length;
@@ -39,20 +41,35 @@ export const InteractiveDecisionTree: React.FC = () => {
     return 1 - (p1 * p1 + p0 * p0);
   };
 
-  const parentGini = useMemo(() => calcGini(points), [points]);
+  // Shannon Entropy: H(S) = - (p1 * log2(p1) + p0 * log2(p0)), bounded in [0, 1.0] bits
+  const calcEntropy = (subset: DataPoint[]) => {
+    if (subset.length === 0) return 0;
+    const p1 = subset.filter((p) => p.approved === 1).length / subset.length;
+    const p0 = 1 - p1;
+    const term1 = p1 > 0 ? p1 * Math.log2(p1) : 0;
+    const term0 = p0 > 0 ? p0 * Math.log2(p0) : 0;
+    return -(term1 + term0);
+  };
 
-  // Compute Left and Right children stats
+  const parentGini = useMemo(() => calcGini(points), [points]);
+  const parentEntropy = useMemo(() => calcEntropy(points), [points]);
+
+  // Compute Left and Right children stats for both Gini and Entropy
   const splitStats = useMemo(() => {
     const left = points.filter((p) => p.dti <= threshold);
     const right = points.filter((p) => p.dti > threshold);
 
     const leftGini = calcGini(left);
     const rightGini = calcGini(right);
-
     const weightedGini =
       (left.length / points.length) * leftGini + (right.length / points.length) * rightGini;
+    const giniReduction = parentGini - weightedGini;
 
-    const purityGain = parentGini - weightedGini;
+    const leftEntropy = calcEntropy(left);
+    const rightEntropy = calcEntropy(right);
+    const weightedEntropy =
+      (left.length / points.length) * leftEntropy + (right.length / points.length) * rightEntropy;
+    const informationGain = parentEntropy - weightedEntropy;
 
     return {
       left,
@@ -60,11 +77,15 @@ export const InteractiveDecisionTree: React.FC = () => {
       leftGini,
       rightGini,
       weightedGini,
-      purityGain,
+      giniReduction,
+      leftEntropy,
+      rightEntropy,
+      weightedEntropy,
+      informationGain,
     };
-  }, [points, threshold, parentGini]);
+  }, [points, threshold, parentGini, parentEntropy]);
 
-  // Optimal threshold (found around 36)
+  // Optimal threshold (found at 36)
   const snapToOptimal = () => {
     setThreshold(36);
   };
@@ -84,7 +105,7 @@ export const InteractiveDecisionTree: React.FC = () => {
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 bg-[#33634B] border border-[#1A1715]" />
           <span className="font-bold text-[11px] uppercase tracking-wider text-[#1A1715]">
-            RECURSIVE GINI SPLIT OPTIMIZER
+            RECURSIVE PARTITIONING: GINI VS ENTROPY BENCH
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -93,7 +114,7 @@ export const InteractiveDecisionTree: React.FC = () => {
             className="px-2 py-1 bg-[#33634B] text-[#FAF7F0] font-bold text-[10px] uppercase border border-[#1A1715] shadow-[1.5px_1.5px_0px_#1A1715] hover:bg-[#284f3c] active:translate-x-[1px] active:translate-y-[1px] flex items-center gap-1"
           >
             <Zap className="w-3 h-3" />
-            <span>Snap to Best Split (36%)</span>
+            <span>Optimal Split (36%)</span>
           </button>
           <button
             onClick={() => setThreshold(25)}
@@ -102,6 +123,54 @@ export const InteractiveDecisionTree: React.FC = () => {
             <RefreshCw className="w-3 h-3" />
           </button>
         </div>
+      </div>
+
+      {/* Criterion Toggle: Gini Impurity (CART) vs Shannon Entropy (ID3/C4.5) */}
+      <div className="p-2 bg-[#E8E1D3]/60 border border-[#1A1715] flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold uppercase text-[#1A1715]">SPLITTING CRITERION:</span>
+          <span className="text-[9px] text-[#5C544B]">
+            {criterion === 'gini' ? 'Gini Impurity (CART Algorithm)' : 'Shannon Entropy (ID3 / C4.5 Algorithm)'}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setCriterion('gini')}
+            className={`px-2.5 py-1 text-[10px] font-bold uppercase border transition-all ${
+              criterion === 'gini'
+                ? 'bg-[#1848B8] text-[#FAF7F0] border-[#1A1715] shadow-[1px_1px_0px_#1A1715]'
+                : 'bg-[#FAF7F0] text-[#5C544B] border-[#1A1715] hover:bg-[#F0EAE0]'
+            }`}
+          >
+            <span>Gini Impurity (CART)</span>
+          </button>
+          <button
+            onClick={() => setCriterion('entropy')}
+            className={`px-2.5 py-1 text-[10px] font-bold uppercase border transition-all ${
+              criterion === 'entropy'
+                ? 'bg-[#6E3867] text-[#FAF7F0] border-[#1A1715] shadow-[1px_1px_0px_#1A1715]'
+                : 'bg-[#FAF7F0] text-[#5C544B] border-[#1A1715] hover:bg-[#F0EAE0]'
+            }`}
+          >
+            <span>Shannon Entropy (ID3/C4.5)</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Criterion Formula Explanation Pill */}
+      <div className="p-2 bg-[#FAF7F0] border border-[#1A1715] text-[10px] flex items-center justify-between gap-2">
+        {criterion === 'gini' ? (
+          <div>
+            <strong className="text-[#1848B8]">GINI FORMULA:</strong> G(S) = 1 - Σ p_k² | Bounds: [0, 0.50] | Metric: <strong>Gini Impurity Reduction (ΔGini)</strong>
+          </div>
+        ) : (
+          <div>
+            <strong className="text-[#6E3867]">ENTROPY FORMULA:</strong> H(S) = -Σ p_k·log₂(p_k) | Bounds: [0, 1.00 bit] | Metric: <strong>Information Gain (IG)</strong>
+          </div>
+        )}
+        <span className="text-[9px] text-[#5C544B] shrink-0">
+          Parent: {criterion === 'gini' ? parentGini.toFixed(3) : `${parentEntropy.toFixed(3)} bits`}
+        </span>
       </div>
 
       {/* Main Split Axis SVG */}
@@ -188,7 +257,7 @@ export const InteractiveDecisionTree: React.FC = () => {
         </div>
       </div>
 
-      {/* Threshold Slider & Gini Calculations */}
+      {/* Threshold Slider & Purity Calculations */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
         {/* Slider */}
         <div className="space-y-1 p-2.5 bg-[#E8E1D3]/50 border border-[#1A1715]">
@@ -212,34 +281,48 @@ export const InteractiveDecisionTree: React.FC = () => {
           </div>
         </div>
 
-        {/* Live Purity Metrics */}
+        {/* Live Purity Metrics: Showing exact selected criterion */}
         <div className="grid grid-cols-3 gap-1.5 text-center">
           <div className="p-1.5 bg-[#FAF7F0] border border-[#1A1715]">
-            <span className="text-[8px] font-bold text-[#5C544B] block">LEFT GINI</span>
+            <span className="text-[8px] font-bold text-[#5C544B] block">
+              {criterion === 'gini' ? 'LEFT GINI' : 'LEFT ENTROPY'}
+            </span>
             <span className="font-mono text-xs font-black text-[#33634B]">
-              {splitStats.leftGini.toFixed(3)}
+              {criterion === 'gini' ? splitStats.leftGini.toFixed(3) : splitStats.leftEntropy.toFixed(3)}
             </span>
             <span className="text-[8px] text-[#948B7D]">n = {splitStats.left.length}</span>
           </div>
 
           <div className="p-1.5 bg-[#FAF7F0] border border-[#1A1715]">
-            <span className="text-[8px] font-bold text-[#5C544B] block">RIGHT GINI</span>
+            <span className="text-[8px] font-bold text-[#5C544B] block">
+              {criterion === 'gini' ? 'RIGHT GINI' : 'RIGHT ENTROPY'}
+            </span>
             <span className="font-mono text-xs font-black text-[#C83226]">
-              {splitStats.rightGini.toFixed(3)}
+              {criterion === 'gini' ? splitStats.rightGini.toFixed(3) : splitStats.rightEntropy.toFixed(3)}
             </span>
             <span className="text-[8px] text-[#948B7D]">n = {splitStats.right.length}</span>
           </div>
 
           <div className="p-1.5 bg-[#FAF7F0] border border-[#1A1715]">
-            <span className="text-[8px] font-bold text-[#5C544B] block">PURITY GAIN</span>
+            <span className="text-[8px] font-bold text-[#5C544B] block">
+              {criterion === 'gini' ? 'GINI REDUCTION' : 'INFO GAIN (IG)'}
+            </span>
             <span className="font-mono text-xs font-black text-[#1848B8]">
-              +{splitStats.purityGain.toFixed(3)}
+              +{criterion === 'gini' ? splitStats.giniReduction.toFixed(3) : `${splitStats.informationGain.toFixed(3)}b`}
             </span>
             <span className="text-[8px] text-[#33634B] font-bold">
-              {splitStats.purityGain >= 0.35 ? 'Max Purity! ★' : 'Suboptimal'}
+              {threshold === 36 ? 'Optimal Peak ★' : 'Suboptimal'}
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Comparative Insight Plate */}
+      <div className="p-2.5 bg-[#F4EFE4] border border-[#1A1715] text-[10px] font-mono text-[#5C544B] flex items-start gap-2">
+        <CheckCircle2 className="w-3.5 h-3.5 text-[#33634B] shrink-0 mt-0.5" />
+        <p className="leading-relaxed">
+          <strong className="text-[#1A1715]">Mathematical Note:</strong> Toggle between Gini and Entropy and observe that both metrics reach their maximum improvement at the exact same split point (36%). Gini Impurity operates in quadratic probability space without costly <code className="bg-[#E8E1D3] px-1 py-0.2">log₂</code> calculations, making CART significantly faster during training.
+        </p>
       </div>
     </div>
   );

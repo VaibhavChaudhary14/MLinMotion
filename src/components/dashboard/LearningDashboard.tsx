@@ -135,7 +135,7 @@ export const LearningDashboard: React.FC = () => {
                         PATH 0{idx + 1}
                       </span>
                       <span className="font-mono text-[9px] text-[#948B7D]">
-                        {path.concepts.length} UNITS
+                        {(path.stages || (path as any).concepts)?.length || 0} UNITS
                       </span>
                     </div>
                     <h4 className="font-mono text-xs font-bold text-[#1A1715] leading-tight">
