@@ -8,7 +8,7 @@ import { AnalogButton } from '@/components/ui/AnalogButton';
 import { FormulaPlate } from '@/components/ui/FormulaPlate';
 import { CodeReader } from '@/components/ui/CodeReader';
 import { Badge } from '@/components/ui/Badge';
-import { LESSONS_REGISTRY } from '@/lib/curriculum/lessonsData';
+import { LESSONS_REGISTRY, getAllLessons } from '@/lib/curriculum/lessonsData';
 import { recordConceptAttempt } from '@/lib/adaptive/recommender';
 import { MISCONCEPTIONS_CATALOG } from '@/lib/adaptive/misconceptions';
 import { isBookmarked, toggleBookmark } from '@/lib/adaptive/bookmarks';
@@ -25,15 +25,18 @@ import {
   Sliders,
   Sparkles,
   BookOpen,
+  Layers,
+  History,
 } from 'lucide-react';
 
 interface LessonPlayerProps {
   lessonId?: string;
 }
 
-export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'kmeans' }) => {
+export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'ml-foundations' }) => {
   const router = useRouter();
-  const lesson = LESSONS_REGISTRY[lessonId] || LESSONS_REGISTRY.kmeans;
+  const allLessons = getAllLessons();
+  const lesson = LESSONS_REGISTRY[lessonId] || allLessons[0];
   const [currentStepIdx, setCurrentStepIdx] = useState<number>(0);
 
   // Prediction State
@@ -50,6 +53,9 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'kmeans' 
 
   useEffect(() => {
     setBookmarked(isBookmarked(lesson.id));
+    setCurrentStepIdx(0);
+    setSelectedPrediction(null);
+    setPredictionSubmitted(false);
   }, [lesson.id]);
 
   const handleToggleBookmark = () => {
@@ -92,7 +98,9 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'kmeans' 
     recordConceptAttempt(lesson.id, isCorrect, miscId);
   };
 
-  const allLessons = Object.values(LESSONS_REGISTRY);
+  // Find next lesson in the 12-stage guided learning path
+  const currentStageIndex = allLessons.findIndex((l) => l.id === lesson.id || l.stageCode === lesson.stageCode);
+  const nextLesson = currentStageIndex >= 0 && currentStageIndex < allLessons.length - 1 ? allLessons[currentStageIndex + 1] : null;
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto">
@@ -102,8 +110,11 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'kmeans' 
           <div className="flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-[#C83226]" />
             <span className="font-mono text-xs font-bold uppercase tracking-widest text-[#5C544B]">
-              LESSON TRACK // {lesson.algorithmId.toUpperCase()}
+              ESSENTIAL 20% CURRICULUM // STAGE {lesson.stageCode || '01'} OF 12
             </span>
+            <Badge variant={lesson.layer === 'evaluation' ? 'amber' : 'ultramarine'}>
+              {lesson.layer === 'evaluation' ? 'EVALUATION LAYER' : 'ESSENTIAL CORE'}
+            </Badge>
           </div>
           <div className="flex items-center gap-3 font-mono text-xs text-[#948B7D]">
             <span>DURATION: {lesson.durationMinutes} MIN</span>
@@ -123,7 +134,7 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'kmeans' 
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="font-mono text-xl sm:text-2xl font-black text-[#1A1715] tracking-tight">
               {lesson.title}
@@ -131,16 +142,16 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'kmeans' 
             <p className="font-mono text-xs text-[#5C544B] mt-0.5">{lesson.subtitle}</p>
           </div>
 
-          {/* Quick Switcher dropdown */}
+          {/* Quick Switcher dropdown for all 12 stages */}
           <div className="shrink-0">
             <select
               value={lesson.id}
               onChange={(e) => router.push(`/lessons/${e.target.value}`)}
-              className="font-mono text-xs bg-[#FAF7F0] text-[#1A1715] border-[1.5px] border-[#1A1715] px-2 py-1 shadow-[1.5px_1.5px_0px_#1A1715] cursor-pointer"
+              className="font-mono text-xs bg-[#FAF7F0] text-[#1A1715] border-[1.5px] border-[#1A1715] px-2.5 py-1.5 shadow-[1.5px_1.5px_0px_#1A1715] cursor-pointer"
             >
               {allLessons.map((l) => (
                 <option key={l.id} value={l.id}>
-                  {l.algorithmId.toUpperCase()} (10 STEPS)
+                  Stage {l.stageCode}: {l.title.replace(/^Stage \d+:\s*/, '')}
                 </option>
               ))}
             </select>
@@ -153,7 +164,7 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'kmeans' 
             <button
               key={s.id}
               onClick={() => setCurrentStepIdx(idx)}
-              className={`flex-1 min-w-[28px] h-2 border border-[#1A1715] transition-all ${
+              className={`flex-1 min-w-[28px] h-2.5 border border-[#1A1715] transition-all ${
                 idx === currentStepIdx
                   ? 'bg-[#C83226] shadow-[1px_1px_0px_#1A1715]'
                   : idx < currentStepIdx
@@ -248,7 +259,7 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'kmeans' 
               <CodeReader
                 codeLines={currentStep.codeSnippet.python.split('\n')}
                 activeLineNumber={4}
-                title={`PYTHON // ${lesson.algorithmId.toUpperCase()} NUMPY KERNEL`}
+                title={`PYTHON // ${lesson.algorithmId.toUpperCase()} IMPLEMENTATION`}
               />
               <div className="p-3 bg-[#E8E1D3]/60 border border-[#1A1715] font-mono text-xs text-[#5C544B]">
                 <span className="font-bold text-[#1A1715] block mb-0.5">SCIKIT-LEARN CONNECTION:</span>
@@ -329,91 +340,122 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({ lessonId = 'kmeans' 
             </div>
           )}
 
-          {/* Phase: Step 10 Mastery & Synthesis (The Vertical Slice Hand-Off Funnel) */}
+          {/* Phase: Step 10 Mastery & Synthesis (The Pedagogical Hand-Off) */}
           {currentStep.phase === 'mastery' && (
             <div className="space-y-4 font-mono text-xs">
               <div className="p-4 bg-[#33634B]/10 border-[1.5px] border-[#33634B] space-y-2">
                 <div className="flex items-center gap-2 font-bold text-[#33634B] text-sm">
                   <CheckCircle2 className="w-5 h-5" />
-                  <span>LESSON COMPLETE // CONCEPT SYNTHESIS VALIDATED</span>
+                  <span>STAGE {lesson.stageCode} COMPLETE // CONCEPT SYNTHESIS VALIDATED</span>
                 </div>
                 <p className="text-[#1A1715] leading-relaxed">
-                  You have mastered the inductive bias, mathematical equations, and failure modes of {lesson.title}.
-                  Now complete the scientific cycle: run the model on real user data, benchmark it against competing algorithms, and log your findings.
+                  You have synthesized the core concepts, mathematical foundations, and diagnostic checks of Stage {lesson.stageCode}: {lesson.title}.
                 </p>
               </div>
 
               {/* End-to-End Vertical Loop Action Funnel */}
               <div className="p-4 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] shadow-[2.5px_2.5px_0px_#1A1715] space-y-3">
                 <span className="font-bold text-[#C83226] block uppercase tracking-wider">
-                  ADVANCE TO NEXT SCIENTIFIC STAGE // CHOOSE YOUR EXPERIMENT PATH
+                  ADVANCE IN THE GUIDED LEARNING PATH
                 </span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Step 1: Run on Real Data in My Data Lab */}
-                  <Link
-                    href={
-                      lesson.algorithmId === 'kmeans'
-                        ? '/datalab?preset=irisSubset&task=clustering&from=kmeans'
-                        : '/datalab?preset=studentExam&task=regression&from=' + lesson.algorithmId
-                    }
-                    className="p-3 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] hover:bg-[#F4EFE4] shadow-[2px_2px_0px_#1A1715] transition-all flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center gap-1.5 text-[#1848B8] font-bold mb-1">
-                        <Database className="w-4 h-4" />
-                        <span>STAGE 02: MY DATA LAB</span>
+                  {/* Action 1: Next Stage in the 12-Stage Path */}
+                  {nextLesson ? (
+                    <Link
+                      href={`/lessons/${nextLesson.id}`}
+                      className="p-3 bg-[#1848B8] text-white border-[1.5px] border-[#1A1715] hover:bg-[#133aa0] shadow-[2px_2px_0px_#1A1715] transition-all flex flex-col justify-between"
+                    >
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#FAF7F0]/80 block mb-1">
+                          NEXT STAGE IN PATH // STAGE {nextLesson.stageCode}
+                        </span>
+                        <h4 className="font-bold text-sm text-white mb-1">{nextLesson.title}</h4>
+                        <p className="text-[11px] text-[#FAF7F0]/90 leading-relaxed">
+                          {nextLesson.subtitle}
+                        </p>
                       </div>
-                      <p className="text-[11px] text-[#5C544B] leading-relaxed">
-                        {lesson.algorithmId === 'kmeans'
-                          ? "Apply Lloyd's algorithm to the real Fisher Iris dataset with custom scaling."
-                          : "Fit this model onto real tabular observations and inspect residual metrics."}
-                      </p>
-                    </div>
-                    <span className="text-[#1848B8] font-bold text-[11px] mt-3 flex items-center gap-1">
-                      RUN IN MY DATA LAB <ArrowRight className="w-3.5 h-3.5" />
-                    </span>
-                  </Link>
+                      <span className="font-bold text-xs mt-3 flex items-center gap-1.5">
+                        CONTINUE TO STAGE {nextLesson.stageCode} <ArrowRight className="w-3.5 h-3.5" />
+                      </span>
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/compare"
+                      className="p-3 bg-[#1848B8] text-white border-[1.5px] border-[#1A1715] hover:bg-[#133aa0] shadow-[2px_2px_0px_#1A1715] transition-all flex flex-col justify-between"
+                    >
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#FAF7F0]/80 block mb-1">
+                          CURRICULUM COMPLETE // SYNTHESIS
+                        </span>
+                        <h4 className="font-bold text-sm text-white mb-1">Comparison Studio</h4>
+                        <p className="text-[11px] text-[#FAF7F0]/90 leading-relaxed">
+                          Benchmark models against non-convex manifolds.
+                        </p>
+                      </div>
+                      <span className="font-bold text-xs mt-3 flex items-center gap-1.5">
+                        OPEN COMPARISON STUDIO <ArrowRight className="w-3.5 h-3.5" />
+                      </span>
+                    </Link>
+                  )}
 
-                  {/* Step 2: Compare against competing models */}
+                  {/* Action 2: Laboratory Tool Connection */}
                   <Link
                     href={
-                      lesson.algorithmId === 'kmeans'
-                        ? '/compare?geometry=concentric&from=kmeans'
-                        : '/lab?algo=' + lesson.algorithmId
+                      lesson.id === 'kmeans'
+                        ? '/datalab?preset=irisSubset&task=clustering&from=kmeans'
+                        : lesson.id === 'linear-regression'
+                        ? '/datalab?preset=studentExam&task=regression&from=linear-regression'
+                        : lesson.id === 'model-comparison'
+                        ? '/history'
+                        : lesson.layer === 'evaluation'
+                        ? '/compare'
+                        : '/lab'
                     }
                     className="p-3 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] hover:bg-[#F4EFE4] shadow-[2px_2px_0px_#1A1715] transition-all flex flex-col justify-between"
                   >
                     <div>
                       <div className="flex items-center gap-1.5 text-[#E28C05] font-bold mb-1">
-                        <GitCompare className="w-4 h-4" />
-                        <span>STAGE 03: COMPARISON STUDIO</span>
+                        {lesson.id === 'kmeans' ? (
+                          <Database className="w-4 h-4" />
+                        ) : lesson.id === 'model-comparison' ? (
+                          <History className="w-4 h-4" />
+                        ) : (
+                          <Sliders className="w-4 h-4" />
+                        )}
+                        <span>
+                          {lesson.id === 'kmeans'
+                            ? 'MY DATA LAB'
+                            : lesson.id === 'model-comparison'
+                            ? 'EXPERIMENT NOTEBOOK'
+                            : 'INTERACTIVE ML LAB'}
+                        </span>
                       </div>
                       <p className="text-[11px] text-[#5C544B] leading-relaxed">
-                        {lesson.algorithmId === 'kmeans'
-                          ? "Benchmark K-Means vs DBSCAN vs Agglomerative on pathological concentric rings."
-                          : "Examine parameter sensitivity and frontier boundaries in the interactive lab."}
+                        {lesson.id === 'kmeans'
+                          ? "Apply Lloyd's algorithm to the real Fisher Iris dataset with custom scaling."
+                          : lesson.id === 'model-comparison'
+                          ? 'Review your complete experiment run history and reproducibility logs.'
+                          : 'Manipulate hyperparameter sliders and observe live boundary adaptations.'}
                       </p>
                     </div>
                     <span className="text-[#E28C05] font-bold text-[11px] mt-3 flex items-center gap-1">
-                      OPEN BENCHMARK STUDIO <ArrowRight className="w-3.5 h-3.5" />
+                      LAUNCH EXPERIMENT <ArrowRight className="w-3.5 h-3.5" />
                     </span>
                   </Link>
                 </div>
 
-                {/* Replay in Algorithm Cinema */}
-                {lesson.algorithmId === 'kmeans' && (
-                  <div className="pt-2 border-t border-[#D8CFC0] flex items-center justify-between">
-                    <span className="text-[11px] text-[#5C544B]">
-                      Prefer visual exploration? Watch step-by-step centroid kinematics:
-                    </span>
-                    <Link href="/cinema">
-                      <AnalogButton variant="secondary" size="sm">
-                        ALGORITHM CINEMA →
-                      </AnalogButton>
-                    </Link>
-                  </div>
-                )}
+                {/* Additional Quick Jump to Full Roadmap */}
+                <div className="pt-2 border-t border-[#D8CFC0] flex items-center justify-between">
+                  <span className="text-[11px] text-[#5C544B]">
+                    Want to see where you stand in the entire 12-stage path?
+                  </span>
+                  <Link href="/lessons">
+                    <AnalogButton variant="secondary" size="sm">
+                      CURRICULUM ROADMAP →
+                    </AnalogButton>
+                  </Link>
+                </div>
               </div>
             </div>
           )}

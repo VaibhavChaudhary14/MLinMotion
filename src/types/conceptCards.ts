@@ -58,7 +58,14 @@ export interface VisualExampleCard {
     | 'logistic-regression'
     | 'decision-trees'
     | 'pca'
-    | 'ensemble-learning';
+    | 'ensemble-learning'
+    | 'features-labels-datasets'
+    | 'train-test-validation'
+    | 'loss-functions'
+    | 'bias-variance-tradeoff'
+    | 'evaluation-metrics'
+    | 'knn'
+    | 'regularization';
 }
 
 // -------------------------------------------------------------

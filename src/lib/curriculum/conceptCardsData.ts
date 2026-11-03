@@ -1,4 +1,5 @@
 import { ConceptCardUnit } from '@/types/conceptCards';
+import { FOUNDATIONS_CONCEPTS } from './concepts/foundationsConcepts';
 
 export const CONCEPT_CARDS_REGISTRY: Record<string, ConceptCardUnit> = {
   // =========================================================================
@@ -1683,6 +1684,9 @@ for name, clf in models:
       },
     },
   },
+
+  // Foundational Machine Learning Concepts (Phase 2 expansion)
+  ...FOUNDATIONS_CONCEPTS,
 };
 
 // Helper list of concept units

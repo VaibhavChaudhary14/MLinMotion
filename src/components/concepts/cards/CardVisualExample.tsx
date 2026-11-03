@@ -9,6 +9,13 @@ import { InteractiveLogisticRegression } from '@/components/concepts/interactive
 import { InteractiveDecisionTree } from '@/components/concepts/interactive/InteractiveDecisionTree';
 import { InteractivePCA } from '@/components/concepts/interactive/InteractivePCA';
 import { InteractiveEnsemble } from '@/components/concepts/interactive/InteractiveEnsemble';
+import { InteractiveFeaturesLabels } from '@/components/concepts/interactive/InteractiveFeaturesLabels';
+import { InteractiveTrainTestSplit } from '@/components/concepts/interactive/InteractiveTrainTestSplit';
+import { InteractiveLossFunctions } from '@/components/concepts/interactive/InteractiveLossFunctions';
+import { InteractiveBiasVariance } from '@/components/concepts/interactive/InteractiveBiasVariance';
+import { InteractiveEvaluationMetrics } from '@/components/concepts/interactive/InteractiveEvaluationMetrics';
+import { InteractiveKNN } from '@/components/concepts/interactive/InteractiveKNN';
+import { InteractiveRegularization } from '@/components/concepts/interactive/InteractiveRegularization';
 import { Sliders, Eye, ArrowRight } from 'lucide-react';
 
 interface CardVisualExampleProps {
@@ -32,6 +39,20 @@ export const CardVisualExample: React.FC<CardVisualExampleProps> = ({ data }) =>
         return <InteractivePCA />;
       case 'ensemble-learning':
         return <InteractiveEnsemble />;
+      case 'features-labels-datasets':
+        return <InteractiveFeaturesLabels />;
+      case 'train-test-validation':
+        return <InteractiveTrainTestSplit />;
+      case 'loss-functions':
+        return <InteractiveLossFunctions />;
+      case 'bias-variance-tradeoff':
+        return <InteractiveBiasVariance />;
+      case 'evaluation-metrics':
+        return <InteractiveEvaluationMetrics />;
+      case 'knn':
+        return <InteractiveKNN />;
+      case 'regularization':
+        return <InteractiveRegularization />;
       default:
         return null;
     }

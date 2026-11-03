@@ -166,4 +166,97 @@ test('Semantic Quality Actions for Categorical vs Numeric', () => {
   assert.ok(catRec.includes('placeholder "Unknown"'));
 });
 
+// 7. Test Huber Loss Quadratic vs Linear Transition
+test('Huber Loss Formulation and Derivative', () => {
+  function huberLoss(e, delta = 1.0) {
+    const absE = Math.abs(e);
+    if (absE <= delta) {
+      return 0.5 * e * e;
+    }
+    return delta * (absE - 0.5 * delta);
+  }
+
+  // Small error (e = 0.5 <= delta=1.0) -> quadratic 0.5 * 0.25 = 0.125
+  assert.equal(huberLoss(0.5, 1.0), 0.125);
+  // Large error (e = 3.0 > delta=1.0) -> linear 1.0 * (3.0 - 0.5) = 2.5
+  assert.equal(huberLoss(3.0, 1.0), 2.5);
+  // Symmetry
+  assert.equal(huberLoss(-3.0, 1.0), 2.5);
+});
+
+// 8. Test Precision, Recall, F1 and Harmonic Mean
+test('Confusion Matrix Diagnostics (Precision, Recall, F1)', () => {
+  const tp = 18;
+  const fp = 2;
+  const fn = 2;
+  const tn = 78;
+
+  const precision = tp / (tp + fp); // 18 / 20 = 0.90
+  const recall = tp / (tp + fn);    // 18 / 20 = 0.90
+  const f1 = (2 * precision * recall) / (precision + recall); // 0.90
+
+  assert.equal(precision, 0.9);
+  assert.equal(recall, 0.9);
+  assert.equal(f1, 0.9);
+
+  // Severe recall failure: tp=2, fn=18
+  const recFailPrecision = 2 / (2 + 2); // 0.50
+  const recFailRecall = 2 / (2 + 18);   // 0.10
+  const recFailF1 = (2 * recFailPrecision * recFailRecall) / (recFailPrecision + recFailRecall);
+  assert.ok(recFailF1 < 0.20); // Harmonic mean severely penalized
+});
+
+// 9. Test KNN Majority Voting & Tie Prevention
+test('KNN Majority Ballot and Neighborhood Selection', () => {
+  const points = [
+    { x: 1, y: 1, label: 'A' },
+    { x: 2, y: 1, label: 'A' },
+    { x: 5, y: 5, label: 'B' },
+  ];
+  const query = { x: 1.5, y: 1.2 };
+  const k = 3;
+
+  const distances = points.map((p) => ({
+    label: p.label,
+    dist: Math.hypot(p.x - query.x, p.y - query.y),
+  }));
+  distances.sort((a, b) => a.dist - b.dist);
+  const neighbors = distances.slice(0, k);
+
+  const votesA = neighbors.filter((n) => n.label === 'A').length;
+  const votesB = neighbors.filter((n) => n.label === 'B').length;
+  const winner = votesA > votesB ? 'A' : 'B';
+
+  assert.equal(winner, 'A');
+  assert.equal(votesA, 2);
+  assert.equal(votesB, 1);
+});
+
+// 10. Test L1 Soft-Thresholding Sparsity
+test('L1 Lasso Soft-Thresholding Operator (Sparsity)', () => {
+  function softThreshold(w, lambda) {
+    if (Math.abs(w) <= lambda) return 0;
+    return Math.sign(w) * (Math.abs(w) - lambda);
+  }
+
+  // Large weight exceeds lambda -> shrunk but non-zero
+  assert.equal(softThreshold(3.0, 1.0), 2.0);
+  assert.equal(softThreshold(-3.0, 1.0), -2.0);
+
+  // Small weight below lambda -> snapped to EXACT zero (sparsity!)
+  assert.equal(softThreshold(0.8, 1.0), 0);
+  assert.equal(softThreshold(-0.5, 1.0), 0);
+});
+
+// 11. Test Bias-Variance Additive Decomposition
+test('Bias-Variance-Noise Additive Decomposition', () => {
+  const biasSq = 0.04;
+  const variance = 0.03;
+  const noise = 0.01;
+  const expectedTestError = biasSq + variance + noise;
+
+  assert.equal(expectedTestError, 0.08);
+  assert.ok(expectedTestError >= noise); // Irreducible noise is theoretical lower bound
+});
+
 console.log('Math verification tests loaded successfully.');

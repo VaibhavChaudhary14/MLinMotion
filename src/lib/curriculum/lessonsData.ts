@@ -1,22 +1,30 @@
 import { Lesson } from '@/types';
+import { stage01Lesson } from './stages/stage01';
+import { stage02Lesson } from './stages/stage02';
+import { stage03Lesson } from './stages/stage03';
+import { stage04Lesson } from './stages/stage04';
+import { stage11Lesson } from './stages/stage11';
+import { stage12Lesson } from './stages/stage12';
 
-export const LESSONS_REGISTRY: Record<string, Lesson> = {
-  // =========================================================================
-  // 1. K-MEANS CLUSTERING
-  // =========================================================================
-  kmeans: {
-    id: 'kmeans',
-    algorithmId: 'kmeans',
-    title: 'K-Means Clustering: Lloyd’s Algorithm & Partitioning',
-    subtitle: 'From random spatial seeding to deterministic Voronoi convergence.',
-    durationMinutes: 18,
-    prerequisites: ['Distance Metrics', 'Euclidean Norm'],
-    learningObjectives: [
-      'Understand the iterative coordinate descent of Lloyd’s algorithm.',
-      'Differentiate between assignment phase and centroid update phase.',
-      'Recognize inertia objective minimization and its sensitivity to local minima.',
-      'Identify topological failure cases on non-spherical clusters.',
-    ],
+// -------------------------------------------------------------
+// CORE ALGORITHM LESSONS (STAGES 05, 06, 07, 08, 09, 10)
+// -------------------------------------------------------------
+const kmeansLesson: Lesson = {
+  id: 'kmeans',
+  stageNumber: 9,
+  stageCode: '09',
+  layer: 'essential',
+  algorithmId: 'kmeans',
+  title: 'Stage 09: Unsupervised Learning & K-Means',
+  subtitle: 'From random spatial seeding to deterministic Voronoi convergence.',
+  durationMinutes: 25,
+  prerequisites: ['data-literacy', 'math-for-ml'],
+  learningObjectives: [
+    'Understand the iterative coordinate descent of Lloyd’s algorithm.',
+    'Differentiate between assignment phase and centroid update phase.',
+    'Recognize inertia objective minimization and its sensitivity to local minima.',
+    'Identify topological failure cases on non-spherical clusters.',
+  ],
     steps: [
       {
         id: 's1-hook',
@@ -189,24 +197,24 @@ export const LESSONS_REGISTRY: Record<string, Lesson> = {
           'You have mastered the mechanics, objective function, and limitations of K-Means. Now bridge your understanding into practice by testing this algorithm on real datasets or comparing its inductive bias with density-based models.',
       },
     ],
-  },
+};
 
-  // =========================================================================
-  // 2. LINEAR REGRESSION
-  // =========================================================================
-  'linear-regression': {
-    id: 'linear-regression',
-    algorithmId: 'linear-regression',
-    title: 'Ordinary Least Squares: Closed-Form Derivations & Residuals',
-    subtitle: 'Deriving the normal equations and measuring continuous prediction error.',
-    durationMinutes: 20,
-    prerequisites: ['Vectors & Matrices', 'Convex Functions'],
-    learningObjectives: [
-      'Understand how Ordinary Least Squares defines and minimizes vertical residuals.',
-      'Derive the closed-form normal equations via matrix calculus.',
-      'Interpret R² coefficient of determination and recognize its limitations.',
-      'Examine high leverage points and outlier sensitivity.',
-    ],
+const linearRegressionLesson: Lesson = {
+  id: 'linear-regression',
+  stageNumber: 5,
+  stageCode: '05',
+  layer: 'essential',
+  algorithmId: 'linear-regression',
+  title: 'Stage 05: Linear Regression & Ordinary Least Squares',
+  subtitle: 'Deriving the normal equations and measuring continuous prediction error.',
+  durationMinutes: 22,
+  prerequisites: ['learning-problem'],
+  learningObjectives: [
+    'Understand how Ordinary Least Squares defines and minimizes vertical residuals.',
+    'Derive the closed-form normal equations via matrix calculus.',
+    'Interpret R² coefficient of determination and recognize its limitations.',
+    'Examine high leverage points and outlier sensitivity.',
+  ],
     steps: [
       {
         id: 'lr-1',
@@ -379,24 +387,24 @@ export const LESSONS_REGISTRY: Record<string, Lesson> = {
           'You understand analytical Ordinary Least Squares, residual mechanics, and leverage vulnerability. Next: Explore Gradient Descent to see how models optimize when datasets are too massive for matrix inversion.',
       },
     ],
-  },
+};
 
-  // =========================================================================
-  // 3. GRADIENT DESCENT
-  // =========================================================================
-  'gradient-descent': {
-    id: 'gradient-descent',
-    algorithmId: 'gradient-descent',
-    title: 'Gradient Descent: Convex Landscapes & First-Order Optimization',
-    subtitle: 'Navigating cost terrain through partial derivatives and step tuning.',
-    durationMinutes: 20,
-    prerequisites: ['Loss Functions', 'Derivatives'],
-    learningObjectives: [
-      'Understand the geometric meaning of the gradient vector as the direction of steepest ascent.',
-      'Analyze the critical role of learning rate alpha in convergence vs divergence.',
-      'Distinguish between cost height (loss) and terrain slope (gradient).',
-      'Diagnose oscillation and ravines in ill-conditioned loss surfaces.',
-    ],
+const gradientDescentLesson: Lesson = {
+  id: 'gradient-descent',
+  stageNumber: 6,
+  stageCode: '06',
+  layer: 'essential',
+  algorithmId: 'gradient-descent',
+  title: 'Stage 06: Gradient Descent & Optimization',
+  subtitle: 'Navigating cost terrain through partial derivatives and step tuning.',
+  durationMinutes: 24,
+  prerequisites: ['linear-regression'],
+  learningObjectives: [
+    'Understand the geometric meaning of the gradient vector as the direction of steepest ascent.',
+    'Analyze the critical role of learning rate alpha in convergence vs divergence.',
+    'Distinguish between cost height (loss) and terrain slope (gradient).',
+    'Diagnose oscillation and ravines in ill-conditioned loss surfaces.',
+  ],
     steps: [
       {
         id: 'gd-1',
@@ -569,24 +577,27 @@ export const LESSONS_REGISTRY: Record<string, Lesson> = {
           'You have mastered gradient vectors, step physics, and stability boundaries. Next: Apply first-order optimization to non-linear classification via Logistic Regression.',
       },
     ],
-  },
+};
 
-  // =========================================================================
-  // 4. LOGISTIC REGRESSION
-  // =========================================================================
-  'logistic-regression': {
-    id: 'logistic-regression',
-    algorithmId: 'logistic-regression',
-    title: 'Logistic Regression: Sigmoid Probabilities & Decision Cutoffs',
-    subtitle: 'Mapping unbounded real numbers into probabilities and evaluating binary boundaries.',
-    durationMinutes: 22,
-    prerequisites: ['Linear Regression', 'Gradient Descent', 'Logarithms'],
-    learningObjectives: [
-      'Understand how the sigmoid activation compresses real numbers into valid probabilities [0, 1].',
-      'Analyze binary cross-entropy log loss and its convex geometry.',
-      'Differentiate between predicted probability and classification decision thresholds.',
-      'Evaluate model trade-offs using precision, recall, and the confusion matrix.',
-    ],
+// =========================================================================
+// 4. LOGISTIC REGRESSION
+// =========================================================================
+const logisticRegressionLesson: Lesson = {
+  id: 'logistic-regression',
+  stageNumber: 7,
+  stageCode: '07',
+  layer: 'essential',
+  algorithmId: 'logistic-regression',
+  title: 'Stage 07: Logistic Regression & Classification',
+  subtitle: 'Mapping unbounded real numbers into probabilities and evaluating binary boundaries.',
+  durationMinutes: 25,
+  prerequisites: ['gradient-descent'],
+  learningObjectives: [
+    'Understand how the sigmoid activation compresses real numbers into valid probabilities [0, 1].',
+    'Analyze binary cross-entropy log loss and its convex geometry.',
+    'Differentiate between predicted probability and classification decision thresholds.',
+    'Evaluate model trade-offs using precision, recall, and the confusion matrix.',
+  ],
     steps: [
       {
         id: 'log-1',
@@ -759,24 +770,27 @@ export const LESSONS_REGISTRY: Record<string, Lesson> = {
           'You understand the sigmoid transform, decision thresholds, and precision-recall trade-offs. Next: Explore Decision Trees to discover non-linear, hierarchical feature partitioning.',
       },
     ],
-  },
+};
 
-  // =========================================================================
-  // 5. DECISION TREES
-  // =========================================================================
-  'decision-trees': {
-    id: 'decision-trees',
-    algorithmId: 'decision-trees',
-    title: 'Decision Trees: Recursive Splits & Impurity Minimization',
-    subtitle: 'From orthogonal feature partitioning to pruning and bias-variance control.',
-    durationMinutes: 24,
-    prerequisites: ['Entropy & Probability', 'Binary Trees'],
-    learningObjectives: [
-      'Understand how greedy recursive splitting partitions feature space orthogonally.',
-      'Compute Gini Impurity and Information Gain entropy mathematically.',
-      'Visualize how deep trees memorize noise (overfitting).',
-      'Apply regularization constraints: max_depth, min_samples_split, and pruning.',
-    ],
+// =========================================================================
+// 5. DECISION TREES
+// =========================================================================
+const decisionTreesLesson: Lesson = {
+  id: 'decision-trees',
+  stageNumber: 8,
+  stageCode: '08',
+  layer: 'essential',
+  algorithmId: 'decision-trees',
+  title: 'Stage 08: Decision Trees: Recursive Partitioning',
+  subtitle: 'From orthogonal feature partitioning to pruning and bias-variance control.',
+  durationMinutes: 25,
+  prerequisites: ['learning-problem', 'logistic-regression'],
+  learningObjectives: [
+    'Understand how greedy recursive splitting partitions feature space orthogonally.',
+    'Compute Gini Impurity and Information Gain entropy mathematically.',
+    'Visualize how deep trees memorize noise (overfitting).',
+    'Apply regularization constraints: max_depth, min_samples_split, and pruning.',
+  ],
     steps: [
       {
         id: 'dt-1',
@@ -949,24 +963,27 @@ export const LESSONS_REGISTRY: Record<string, Lesson> = {
           'You understand recursive orthogonal splits, Gini impurity, and variance control. Next: Explore Principal Component Analysis to discover how linear algebra rotates coordinate axes to capture maximum variance.',
       },
     ],
-  },
+};
 
-  // =========================================================================
-  // 6. PRINCIPAL COMPONENT ANALYSIS (PCA)
-  // =========================================================================
-  pca: {
-    id: 'pca',
-    algorithmId: 'pca',
-    title: 'Principal Component Analysis: Covariance & Dimensionality Reduction',
-    subtitle: 'Spectral decomposition of feature covariance into orthogonal variance axes.',
-    durationMinutes: 24,
-    prerequisites: ['Eigenvalues & Eigenvectors', 'Matrix Multiplication', 'Variance'],
-    learningObjectives: [
-      'Understand how data centering aligns coordinates with the centroid origin.',
-      'Construct and interpret the feature covariance matrix.',
-      'Derive principal components as eigenvectors of the covariance matrix.',
-      'Differentiate between variance retention and classification separability.',
-    ],
+// =========================================================================
+// 6. PRINCIPAL COMPONENT ANALYSIS (PCA)
+// =========================================================================
+const pcaLesson: Lesson = {
+  id: 'pca',
+  stageNumber: 10,
+  stageCode: '10',
+  layer: 'essential',
+  algorithmId: 'pca',
+  title: 'Stage 10: PCA & Dimensionality Reduction',
+  subtitle: 'Spectral decomposition of feature covariance into orthogonal variance axes.',
+  durationMinutes: 26,
+  prerequisites: ['math-for-ml', 'kmeans'],
+  learningObjectives: [
+    'Understand how data centering aligns coordinates with the centroid origin.',
+    'Construct and interpret the feature covariance matrix.',
+    'Derive principal components as eigenvectors of the covariance matrix.',
+    'Differentiate between variance retention and classification separability.',
+  ],
     steps: [
       {
         id: 'pca-1',
@@ -1136,8 +1153,76 @@ export const LESSONS_REGISTRY: Record<string, Lesson> = {
         eyebrow: 'PHASE 10 // MASTERY',
         phase: 'mastery',
         contentMarkdown:
-          'You have mastered data centering, covariance matrices, and spectral projections. You have completed the 6 foundational algorithm lessons in ML in Motion!',
+          'You have mastered data centering, covariance matrices, and spectral projections. You have completed the 10 Essential Core Algorithm Stages in ML in Motion! Next, advance into Stage 11: Model Evaluation & Generalization to validate your models rigorously.',
       },
     ],
-  },
 };
+
+// =========================================================================
+// MASTER 12-STAGE CURRICULUM REGISTRY
+// =========================================================================
+export const LESSONS_REGISTRY: Record<string, Lesson> = {
+  // Layer 1: Essential Core (Stages 01–10)
+  '01': stage01Lesson,
+  'ml-foundations': stage01Lesson,
+
+  '02': stage02Lesson,
+  'data-literacy': stage02Lesson,
+
+  '03': stage03Lesson,
+  'math-for-ml': stage03Lesson,
+
+  '04': stage04Lesson,
+  'learning-problem': stage04Lesson,
+
+  '05': linearRegressionLesson,
+  'linear-regression': linearRegressionLesson,
+
+  '06': gradientDescentLesson,
+  'gradient-descent': gradientDescentLesson,
+
+  '07': logisticRegressionLesson,
+  'logistic-regression': logisticRegressionLesson,
+
+  '08': decisionTreesLesson,
+  'decision-trees': decisionTreesLesson,
+
+  '09': kmeansLesson,
+  kmeans: kmeansLesson,
+
+  '10': pcaLesson,
+  pca: pcaLesson,
+
+  // Layer 2: Evaluation & Scientific Thinking (Stages 11–12)
+  '11': stage11Lesson,
+  'model-evaluation': stage11Lesson,
+
+  '12': stage12Lesson,
+  'model-comparison': stage12Lesson,
+
+  // Backwards compatibility aliases
+  'distance-metrics': stage03Lesson,
+  'kmeans-clustering': kmeansLesson,
+  'loss-functions': stage04Lesson,
+  'cluster-evaluation': stage11Lesson,
+  'clustering-failure-cases': stage12Lesson,
+  'pca-reduction': pcaLesson,
+};
+
+export function getAllLessons(): Lesson[] {
+  return [
+    stage01Lesson,
+    stage02Lesson,
+    stage03Lesson,
+    stage04Lesson,
+    linearRegressionLesson,
+    gradientDescentLesson,
+    logisticRegressionLesson,
+    decisionTreesLesson,
+    kmeansLesson,
+    pcaLesson,
+    stage11Lesson,
+    stage12Lesson,
+  ];
+}
+
