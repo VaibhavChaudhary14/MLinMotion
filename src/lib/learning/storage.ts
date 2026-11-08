@@ -20,9 +20,11 @@ import type {
   RevisionScheduleRecord,
 } from './types.ts';
 import type { PathProgressSummary } from './paths/types.ts';
+import type { DiagnosticAssessmentResult, ConceptGap } from './diagnostic/types.ts';
 import { STRUCTURED_LEARNING_PATHS, getPathConceptIds } from './paths/learningPaths.ts';
 import { CONCEPT_GRAPH } from './concepts/conceptGraph.ts';
 import { evaluateConceptMastery } from './mastery/masteryEvaluator.ts';
+import { computeNextRevisionSchedule } from './revision/revisionPlanner.ts';
 
 const STORAGE_KEY = 'ml_in_motion_learning_profile_v1';
 
@@ -36,6 +38,8 @@ export function getInitialProfile(): LocalLearningProfile {
     practiceAttempts: [],
     conceptMastery: {},
     revisionSchedule: {},
+    diagnosticResults: [],
+    detectedGaps: [],
     bypassesCount: 0,
   };
 }
@@ -58,6 +62,8 @@ export function loadLearningProfile(): LocalLearningProfile {
       practiceAttempts: Array.isArray(parsed.practiceAttempts) ? parsed.practiceAttempts : [],
       conceptMastery: typeof parsed.conceptMastery === 'object' && parsed.conceptMastery !== null ? parsed.conceptMastery : {},
       revisionSchedule: typeof parsed.revisionSchedule === 'object' && parsed.revisionSchedule !== null ? parsed.revisionSchedule : {},
+      diagnosticResults: Array.isArray(parsed.diagnosticResults) ? parsed.diagnosticResults : [],
+      detectedGaps: Array.isArray(parsed.detectedGaps) ? parsed.detectedGaps : [],
       bypassesCount: typeof parsed.bypassesCount === 'number' ? parsed.bypassesCount : 0,
     };
   } catch (err) {
@@ -351,4 +357,46 @@ export function getRecommendedNextConcept(
   }
 
   return conceptIds[0] || null;
+}
+
+export function recordDiagnosticResult(
+  result: DiagnosticAssessmentResult
+): LocalLearningProfile {
+  const profile = loadLearningProfile();
+  if (!profile.diagnosticResults) profile.diagnosticResults = [];
+  profile.diagnosticResults.unshift(result);
+  if (profile.diagnosticResults.length > 10) {
+    profile.diagnosticResults = profile.diagnosticResults.slice(0, 10);
+  }
+
+  profile.detectedGaps = result.detectedGaps;
+
+  // Integrate detected gaps into the revision schedule without removing pre-existing verified mastery
+  if (!profile.revisionSchedule) profile.revisionSchedule = {};
+  for (const gap of result.detectedGaps) {
+    // Set 1-day retrieval reminder for missed concept
+    profile.revisionSchedule[gap.conceptId] = computeNextRevisionSchedule(
+      gap.conceptId,
+      false, // retrieval failed in diagnostic
+      profile.revisionSchedule[gap.conceptId]
+    );
+  }
+
+  profile.lastActive = Date.now();
+  saveLearningProfile(profile);
+  return profile;
+}
+
+export function getLatestDiagnosticResult(
+  existingProfile?: LocalLearningProfile
+): DiagnosticAssessmentResult | null {
+  const profile = existingProfile || loadLearningProfile();
+  return (profile.diagnosticResults && profile.diagnosticResults[0]) || null;
+}
+
+export function getActiveConceptGaps(
+  existingProfile?: LocalLearningProfile
+): ConceptGap[] {
+  const profile = existingProfile || loadLearningProfile();
+  return profile.detectedGaps || [];
 }

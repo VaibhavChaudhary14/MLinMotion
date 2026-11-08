@@ -17,8 +17,11 @@ import {
   getPathProgressSummary,
   recalculateAllConceptMastery,
   calculateProfileStats,
+  getLatestDiagnosticResult,
+  getActiveConceptGaps,
 } from '@/lib/learning/storage';
 import type { LocalLearningProfile } from '@/lib/learning/types';
+import type { DiagnosticAssessmentResult, ConceptGap } from '@/lib/learning/diagnostic/types';
 import { getActiveRevisionQueue, RevisionItem } from '@/lib/learning/revision';
 import { PracticeModal } from './PracticeModal';
 import {
@@ -46,6 +49,8 @@ export const LearningDashboard: React.FC = () => {
   const [profile, setProfile] = useState<LocalLearningProfile | null>(null);
   const [activePathId, setActivePathId] = useState<string>('path-optimization');
   const [revisionQueue, setRevisionQueue] = useState<RevisionItem[]>([]);
+  const [latestDiagnostic, setLatestDiagnostic] = useState<DiagnosticAssessmentResult | null>(null);
+  const [activeGaps, setActiveGaps] = useState<ConceptGap[]>([]);
   const [practiceModalConcept, setPracticeModalConcept] = useState<{ id: string; name: string } | null>(null);
 
   const refreshProfileData = () => {
@@ -57,6 +62,8 @@ export const LearningDashboard: React.FC = () => {
     setRevisionQueue(
       getActiveRevisionQueue(updated.revisionSchedule || {}, updated.conceptMastery || {})
     );
+    setLatestDiagnostic(getLatestDiagnosticResult(updated));
+    setActiveGaps(getActiveConceptGaps(updated));
   };
 
   useEffect(() => {
@@ -169,8 +176,125 @@ export const LearningDashboard: React.FC = () => {
 
       {/* Primary 2-Column Dashboard Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column (8 cols): Next Recommendation & Modules */}
+        {/* Left Column (8 cols): Diagnostic Intelligence, Next Recommendation & Modules */}
         <div className="lg:col-span-8 space-y-6">
+          {/* Diagnostic Intelligence & Remediation Engine */}
+          <AnalogCard
+            variant="card"
+            headerEyebrow="DIAGNOSTIC INTELLIGENCE & REMEDIATION ENGINE"
+            headerTitle={latestDiagnostic ? "PREREQUISITE KNOWLEDGE GAP AUDIT" : "DIAGNOSTIC READINESS BENCHMARK"}
+            headerAction={
+              latestDiagnostic ? (
+                <Badge variant={activeGaps.length > 0 ? 'vermilion' : 'sage'}>
+                  {activeGaps.length > 0 ? `${activeGaps.length} GAPS DETECTED` : 'ALL PREREQUISITES VERIFIED'}
+                </Badge>
+              ) : (
+                <Badge variant="amber">ASSESSMENT PENDING</Badge>
+              )
+            }
+          >
+            {latestDiagnostic ? (
+              <div className="space-y-4 font-mono text-xs">
+                <div className="p-3 bg-[#F4EFE4] border border-[#1A1715] flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 border border-[#1A1715] bg-[#FAF7F0] flex items-center justify-center font-bold text-sm text-[#1848B8]">
+                      {latestDiagnostic.scorePercentage}%
+                    </div>
+                    <div>
+                      <span className="font-bold text-[#1A1715] block">
+                        Diagnostic Readiness Score ({latestDiagnostic.correctCount} / {latestDiagnostic.totalQuestions} Passed)
+                      </span>
+                      <span className="text-[10px] text-[#5C544B]">
+                        Evaluated {new Date(latestDiagnostic.timestamp).toLocaleDateString()} // 100% Local ledger
+                      </span>
+                    </div>
+                  </div>
+                  <Link href="/quiz">
+                    <button className="text-[11px] font-bold text-[#1848B8] border border-[#1848B8] px-2.5 py-1 bg-[#FAF7F0] hover:bg-[#E8E1D3] flex items-center gap-1">
+                      <RotateCcw className="w-3 h-3" /> RETARGET DIAGNOSTIC
+                    </button>
+                  </Link>
+                </div>
+
+                {activeGaps.length > 0 ? (
+                  <div className="space-y-2.5">
+                    <div className="text-[10px] font-bold text-[#C83226] uppercase tracking-wider flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <span>PREREQUISITE REMEDIATION RECOMMENDATIONS:</span>
+                    </div>
+                    {activeGaps.slice(0, 3).map((gap) => (
+                      <div
+                        key={gap.conceptId}
+                        className="p-3 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] shadow-[2px_2px_0px_#1A1715] space-y-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-[#1A1715]">{gap.conceptName}</span>
+                            <Badge variant={gap.confidence === 'critical' ? 'vermilion' : gap.confidence === 'confirmed' ? 'amber' : 'neutral'}>
+                              {gap.confidence.toUpperCase()}
+                            </Badge>
+                          </div>
+                          <span className="text-[10px] text-[#5C544B]">Score: {gap.score}%</span>
+                        </div>
+                        <p className="text-[11px] text-[#1A1715]/80 leading-relaxed">
+                          {gap.explainableRecommendation}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[#1A1715]/10">
+                          {gap.remediationActions.map((act) => (
+                            act.type === 'practice' ? (
+                              <button
+                                key={act.id}
+                                onClick={() => setPracticeModalConcept({ id: gap.conceptId, name: gap.conceptName })}
+                                className="text-[10px] font-bold text-[#1848B8] bg-[#F4EFE4] px-2 py-0.5 border border-[#1A1715] hover:bg-[#E8E1D3] flex items-center gap-0.5"
+                              >
+                                <span>{act.title}</span>
+                                <ChevronRight className="w-2.5 h-2.5" />
+                              </button>
+                            ) : (
+                              <Link
+                                key={act.id}
+                                href={act.url}
+                                className="text-[10px] font-bold text-[#1848B8] bg-[#F4EFE4] px-2 py-0.5 border border-[#1A1715] hover:bg-[#E8E1D3] flex items-center gap-0.5"
+                              >
+                                <span>{act.title}</span>
+                                <ChevronRight className="w-2.5 h-2.5" />
+                              </Link>
+                            )
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-3 bg-[#33634B]/10 border border-[#33634B] text-[#33634B] flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>Prerequisites verified across all tested domains. You are primed to advance on your learning pathway.</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-4 bg-[#F4EFE4] border-[1.5px] border-[#1A1715] font-mono text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold text-[#E28C05] uppercase tracking-wider block">
+                    RECOMMENDED PREREQUISITE ASSESSMENT
+                  </span>
+                  <h4 className="text-sm font-bold text-[#1A1715]">
+                    Benchmark Your Concept Readiness (20 Questions)
+                  </h4>
+                  <p className="text-[#5C544B] text-[11px] max-w-xl">
+                    Identify specific calculus, optimization, and clustering gaps before starting your learning pathway. Traces upstream prerequisite root causes with zero cloud tracking.
+                  </p>
+                </div>
+                <Link href="/quiz" className="shrink-0">
+                  <AnalogButton variant="primary" size="md" className="flex items-center gap-1.5">
+                    <span>RUN DIAGNOSTIC CHECK</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </AnalogButton>
+                </Link>
+              </div>
+            )}
+          </AnalogCard>
+
           {/* Priority Activity: Recommended Next Concept */}
           {nextConcept && (
             <AnalogCard

@@ -184,6 +184,8 @@ export interface LocalLearningProfile {
   practiceAttempts: PracticeAttemptRecord[];
   conceptMastery: Record<string, ConceptMasteryRecord>;
   revisionSchedule: Record<string, RevisionScheduleRecord>;
+  diagnosticResults?: any[];
+  detectedGaps?: any[];
   bypassesCount?: number;
 }
 

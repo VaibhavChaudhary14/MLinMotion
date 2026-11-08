@@ -1,5 +1,6 @@
 import { ConceptCardUnit } from '@/types/conceptCards';
 import { FOUNDATIONS_CONCEPTS } from './concepts/foundationsConcepts';
+import { getAllAdaptedConceptCards } from './conceptGraphCardAdapter.ts';
 
 export const CONCEPT_CARDS_REGISTRY: Record<string, ConceptCardUnit> = {
   // =========================================================================
@@ -1687,6 +1688,9 @@ for name, clf in models:
 
   // Foundational Machine Learning Concepts (Phase 2 expansion)
   ...FOUNDATIONS_CONCEPTS,
+
+  // Concept Knowledge Graph 20-Node Expansion (Phase 08)
+  ...getAllAdaptedConceptCards(),
 };
 
 // Helper list of concept units

@@ -12,4 +12,5 @@ export * from './paths/index.ts';
 export * from './assessment/index.ts';
 export * from './mastery/index.ts';
 export * from './revision/index.ts';
+export * from './diagnostic/index.ts';
 
