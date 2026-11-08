@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 interface PredictionCheckpointPanelProps {
-  question: PredictionQuestion | null;
+  question: PredictionQuestion<any, any> | null;
   isLocked: boolean;
   onCommitPrediction: (guess: any) => PredictionEvaluationResult;
   onUnlockBypass?: () => void;

@@ -34,9 +34,27 @@ import {
   HelpCircle,
   Sparkles,
   BookOpen,
+  Flame,
+  ShieldCheck,
+  TrendingUp,
+  Lock,
+  Unlock,
 } from 'lucide-react';
+import {
+  getKMeansPredictionForStep,
+  KMEANS_CHALLENGES,
+  recordPredictionAttempt,
+  recordChallengeAttempt,
+  loadLearningProfile,
+} from '@/lib/learning';
+import { PredictionCheckpointPanel } from '@/components/learning/PredictionCheckpointPanel';
+import { ChallengeWorkbenchPanel } from '@/components/learning/ChallengeWorkbenchPanel';
+import { LearningAnalyticsCard } from '@/components/learning/LearningAnalyticsCard';
 
 export const KMeansSimulationWorkbench: React.FC = () => {
+  // View mode: Exploration vs Challenges vs Ledger
+  const [workbenchView, setWorkbenchView] = useState<'explore' | 'challenges' | 'ledger'>('explore');
+
   // Scenario & Configuration State
   const [scenarioId, setScenarioId] = useState<KMeansFailureScenarioId>('separated');
   const [kValue, setKValue] = useState<number>(3);
@@ -45,10 +63,21 @@ export const KMeansSimulationWorkbench: React.FC = () => {
   const [manualPlacementPoints, setManualPlacementPoints] = useState<Array<{ x: number; y: number }>>([]);
   const [isManualPlacingActive, setIsManualPlacingActive] = useState<boolean>(false);
 
-  // Playback State
+  // Playback & Interactive Learning State
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [speedMs, setSpeedMs] = useState<number>(750);
   const [predictionMode, setPredictionMode] = useState<boolean>(true);
+  const [isPredictionLocked, setIsPredictionLocked] = useState<boolean>(true);
+  const [activeChallengeId, setActiveChallengeId] = useState<string>('KM-01');
+  const [completedChallenges, setCompletedChallenges] = useState<Record<string, boolean>>(() => {
+    if (typeof window === 'undefined') return {};
+    const prof = loadLearningProfile();
+    const map: Record<string, boolean> = {};
+    Object.values(prof.challenges).forEach((c) => {
+      if (c.completed) map[c.challengeId] = true;
+    });
+    return map;
+  });
   const [selectedPrediction, setSelectedPrediction] = useState<string | null>(null);
   const [predictionFeedback, setPredictionFeedback] = useState<{ isCorrect: boolean; text: string } | null>(null);
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
@@ -133,27 +162,82 @@ export const KMeansSimulationWorkbench: React.FC = () => {
     setPredictionFeedback(null);
   }, [kValue, initMethod, seed]);
 
+  // Active prediction question
+  const activePredictionQuestion = useMemo(() => {
+    if (!predictionMode) return null;
+    return getKMeansPredictionForStep(simState);
+  }, [predictionMode, simState]);
+
   // Stepping Forward
   const handleStepForward = () => {
     if (simState.isConverged) return;
 
-    // Check prediction if prediction mode is on and question exists
-    const currentExp = kmeansEngine.getExplanation(simState);
-    if (predictionMode && currentExp.predictionPrompt && selectedPrediction) {
-      const chosenOpt = currentExp.predictionPrompt.options.find((o) => o.id === selectedPrediction);
-      if (chosenOpt) {
-        setPredictionFeedback({
-          isCorrect: chosenOpt.isCorrect,
-          text: currentExp.predictionPrompt.explanation,
-        });
-      }
-    } else {
-      setPredictionFeedback(null);
+    if (predictionMode && activePredictionQuestion && isPredictionLocked) {
+      // Locked before commit
+      return;
     }
 
     const nextState = kmeansEngine.step(simState);
     setSimState(nextState);
+    setIsPredictionLocked(true);
     setSelectedPrediction(null);
+  };
+
+  // Prediction commitment
+  const handleCommitPrediction = (guess: any) => {
+    if (!activePredictionQuestion) return null as any;
+    const nextState = kmeansEngine.step(simState);
+    const result = activePredictionQuestion.evaluate(guess, simState, nextState);
+    recordPredictionAttempt(
+      activePredictionQuestion.id,
+      'kmeans',
+      activePredictionQuestion.category,
+      guess,
+      result.status,
+      result.score
+    );
+    setIsPredictionLocked(false);
+    return result;
+  };
+
+  // Challenge selection & application
+  const handleSelectChallenge = (id: string) => {
+    setActiveChallengeId(id);
+    const ch = KMEANS_CHALLENGES.find((c) => c.id === id);
+    if (!ch) return;
+    const nextK = ch.defaultConfig.k ?? kValue;
+    const nextMethod = ch.defaultConfig.initMethod ?? initMethod;
+    const nextSeed = ch.defaultConfig.seed ?? seed;
+    setKValue(nextK);
+    setInitMethod(nextMethod);
+    setSeed(nextSeed);
+
+    const points = activeScenario.generate().points;
+    const newState = kmeansEngine.initialize(
+      { k: nextK, initMethod: nextMethod, seed: nextSeed, maxIterations: ch.defaultConfig.maxIterations ?? 30 },
+      points,
+      nextSeed
+    );
+    setSimState(newState);
+  };
+
+  // Challenge outcome verification
+  const handleVerifyChallenge = (challenge: any) => {
+    const outcome = challenge.verifyCondition(
+      simState,
+      kmeansEngine.getMetrics(simState),
+      []
+    );
+    recordChallengeAttempt(
+      challenge.id,
+      'kmeans',
+      outcome.passed,
+      outcome.metricsObserved
+    );
+    if (outcome.passed) {
+      setCompletedChallenges((prev) => ({ ...prev, [challenge.id]: true }));
+    }
+    return outcome;
   };
 
   // Stepping Backward
@@ -347,10 +431,70 @@ export const KMeansSimulationWorkbench: React.FC = () => {
           </div>
         </div>
 
-        {/* 2. FAILURE LABORATORY BENCHMARK STRIP */}
-        <div className="mt-4 pt-1 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+        {/* 2. MODE SWITCHER & BENCHMARK STRIP */}
+        <div className="mt-4 pt-1 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-t border-[#1A1715]/20 pt-3">
           <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
-            <span className="font-bold text-[#5C544B] uppercase mr-1">FAILURE LABORATORY:</span>
+            <span className="font-bold text-[#5C544B] uppercase mr-1">MODE:</span>
+            <button
+              onClick={() => {
+                setWorkbenchView('explore');
+                setIsPlaying(false);
+              }}
+              className={`px-3 py-1 font-bold border transition-none uppercase ${
+                workbenchView === 'explore'
+                  ? 'bg-[#1A1715] text-[#FAF7F0] border-[#1A1715] shadow-[1.5px_1.5px_0px_#1A1715]'
+                  : 'bg-[#F4EFE4] text-[#1A1715] border-[#1A1715] hover:bg-[#E8E1D3]'
+              }`}
+            >
+              EXPLORATION & SCENARIOS
+            </button>
+            <button
+              onClick={() => {
+                setWorkbenchView('challenges');
+                setIsPlaying(false);
+              }}
+              className={`px-3 py-1 font-bold border transition-none uppercase flex items-center gap-1 ${
+                workbenchView === 'challenges'
+                  ? 'bg-[#C83226] text-[#FAF7F0] border-[#1A1715] shadow-[1.5px_1.5px_0px_#1A1715]'
+                  : 'bg-[#F4EFE4] text-[#1A1715] border-[#1A1715] hover:bg-[#E8E1D3]'
+              }`}
+            >
+              <Flame className="w-3 h-3" />
+              BREAK THE ALGORITHM (5 CHALLENGES)
+            </button>
+            <button
+              onClick={() => {
+                setWorkbenchView('ledger');
+                setIsPlaying(false);
+              }}
+              className={`px-3 py-1 font-bold border transition-none uppercase flex items-center gap-1 ${
+                workbenchView === 'ledger'
+                  ? 'bg-[#33634B] text-[#FAF7F0] border-[#1A1715] shadow-[1.5px_1.5px_0px_#1A1715]'
+                  : 'bg-[#F4EFE4] text-[#1A1715] border-[#1A1715] hover:bg-[#E8E1D3]'
+              }`}
+            >
+              <TrendingUp className="w-3 h-3" />
+              LEARNING LEDGER
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 text-[10px]">
+            <button
+              onClick={() => setPredictionMode(!predictionMode)}
+              className={`px-2.5 py-1 border border-[#1A1715] font-bold flex items-center gap-1 ${
+                predictionMode ? 'bg-[#1848B8] text-[#FAF7F0] shadow-[1px_1px_0px_#1A1715]' : 'bg-[#E8E1D3] text-[#5C544B]'
+              }`}
+            >
+              <Sparkles className="w-3 h-3" />
+              PREDICTION MODE: {predictionMode ? 'ON (LOCKED)' : 'OFF'}
+            </button>
+          </div>
+        </div>
+
+        {/* Failure Laboratory Buttons (when in exploration mode) */}
+        {workbenchView === 'explore' && (
+          <div className="flex flex-wrap items-center gap-1.5 text-[10px] pt-1">
+            <span className="font-bold text-[#5C544B] uppercase mr-1">SCENARIOS:</span>
             {(Object.keys(KMEANS_FAILURE_SCENARIOS) as KMeansFailureScenarioId[]).map((id) => {
               const sc = KMEANS_FAILURE_SCENARIOS[id];
               return (
@@ -368,18 +512,7 @@ export const KMeansSimulationWorkbench: React.FC = () => {
               );
             })}
           </div>
-
-          <div className="flex items-center gap-2 text-[10px]">
-            <button
-              onClick={() => setPredictionMode(!predictionMode)}
-              className={`px-2 py-1 border border-[#1A1715] font-bold ${
-                predictionMode ? 'bg-[#1848B8] text-[#FAF7F0]' : 'bg-[#E8E1D3] text-[#5C544B]'
-              }`}
-            >
-              PREDICTION MODE: {predictionMode ? 'ON' : 'OFF'}
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* Active Scenario Banner Note */}
         <div className="mt-3 p-3 bg-[#E8E1D3]/50 border border-[#1A1715] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
@@ -756,15 +889,26 @@ export const KMeansSimulationWorkbench: React.FC = () => {
                 <button
                   onClick={handleStepForward}
                   disabled={simState.isConverged}
-                  title="Execute Next Step (Lloyd)"
+                  title={predictionMode && activePredictionQuestion && isPredictionLocked ? 'Locked: Submit your prediction before stepping' : 'Execute Next Step (Lloyd)'}
                   className={`px-3 h-9 flex items-center gap-1.5 border-[1.5px] border-[#1A1715] shadow-[2px_2px_0px_#1A1715] font-bold text-xs uppercase active:translate-x-[1px] active:translate-y-[1px] ${
                     simState.isConverged
                       ? 'bg-[#E8E1D3] text-[#948B7D] cursor-not-allowed'
+                      : predictionMode && activePredictionQuestion && isPredictionLocked
+                      ? 'bg-[#FAF7F0] text-[#C83226] border-[#C83226]'
                       : 'bg-[#FAF7F0] text-[#1A1715] hover:bg-[#F0EAE0]'
                   }`}
                 >
-                  <span>STEP</span>
-                  <SkipForward className="w-4 h-4" />
+                  {predictionMode && activePredictionQuestion && isPredictionLocked ? (
+                    <>
+                      <Lock className="w-3.5 h-3.5 text-[#C83226]" />
+                      <span>LOCKED (PREDICT)</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>STEP</span>
+                      <SkipForward className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </div>
 
@@ -979,53 +1123,41 @@ export const KMeansSimulationWorkbench: React.FC = () => {
             </div>
           </div>
 
-          {/* LEARNING CHECKPOINT (PREDICT-BEFORE-REVEAL) */}
-          {predictionMode && explanation.predictionPrompt && (
-            <div className="p-4 bg-[#FAF7F0] border-[1.5px] border-[#1848B8] shadow-[3px_3px_0px_#1848B8] space-y-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#1848B8]" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#1848B8]">
-                  PREDICTION CHECKPOINT // TEST YOUR REASONING
-                </span>
-              </div>
-
-              <p className="text-xs font-bold text-[#1A1715] leading-snug">
-                {explanation.predictionPrompt.question}
-              </p>
-
-              <div className="space-y-1.5">
-                {explanation.predictionPrompt.options.map((opt) => (
-                  <button
-                    key={opt.id}
-                    onClick={() => setSelectedPrediction(opt.id)}
-                    className={`w-full text-left p-2 border text-[11px] leading-snug flex items-start gap-2 ${
-                      selectedPrediction === opt.id
-                        ? 'bg-[#1848B8] text-[#FAF7F0] border-[#1A1715]'
-                        : 'bg-[#F4EFE4] text-[#1A1715] border-[#D8CFC0] hover:bg-[#E8E1D3]'
-                    }`}
-                  >
-                    <span className="font-bold">{opt.label}.</span>
-                    <span>{opt.text}</span>
-                  </button>
-                ))}
-              </div>
-
-              {predictionFeedback && (
-                <div
-                  className={`p-2.5 border text-xs leading-relaxed space-y-1 ${
-                    predictionFeedback.isCorrect
-                      ? 'bg-[#33634B]/10 border-[#33634B] text-[#33634B]'
-                      : 'bg-[#C83226]/10 border-[#C83226] text-[#C83226]'
-                  }`}
-                >
-                  <div className="font-bold flex items-center gap-1.5">
-                    {predictionFeedback.isCorrect ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
-                    <span>{predictionFeedback.isCorrect ? 'PREDICTION VERIFIED' : 'MISCONCEPTION CAUGHT'}</span>
-                  </div>
-                  <p className="text-[11px] text-[#1A1715]">{predictionFeedback.text}</p>
-                </div>
+          {/* INTERACTIVE LEARNING SYSTEMS (PHASE 05) */}
+          {workbenchView === 'challenges' ? (
+            <ChallengeWorkbenchPanel
+              challenges={KMEANS_CHALLENGES}
+              activeChallengeId={activeChallengeId}
+              onSelectChallenge={handleSelectChallenge}
+              onVerifyChallenge={handleVerifyChallenge}
+              completedChallenges={completedChallenges}
+              onResetSimulation={handleReset}
+            />
+          ) : workbenchView === 'ledger' ? (
+            <LearningAnalyticsCard
+              algorithmFilter="kmeans"
+              onProfileUpdated={() => {
+                const prof = loadLearningProfile();
+                const map: Record<string, boolean> = {};
+                Object.values(prof.challenges).forEach((c) => {
+                  if (c.completed) map[c.challengeId] = true;
+                });
+                setCompletedChallenges(map);
+              }}
+            />
+          ) : (
+            <>
+              {predictionMode && activePredictionQuestion && (
+                <PredictionCheckpointPanel
+                  question={activePredictionQuestion}
+                  isLocked={isPredictionLocked}
+                  onCommitPrediction={handleCommitPrediction}
+                  onUnlockBypass={() => setIsPredictionLocked(false)}
+                  onAdvanceStep={handleStepForward}
+                  onRetry={() => setIsPredictionLocked(true)}
+                />
               )}
-            </div>
+            </>
           )}
         </div>
       </div>

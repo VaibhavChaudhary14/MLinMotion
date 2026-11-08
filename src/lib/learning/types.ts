@@ -60,7 +60,7 @@ export interface PredictionEvaluationResult {
   explanation: PredictionMultiRepresentation;
 }
 
-export interface PredictionQuestion<TState = unknown, TNextState = unknown> {
+export interface PredictionQuestion<TState = any, TNextState = any> {
   id: string;
   algorithmId: 'gradient-descent' | 'kmeans';
   title: string;
