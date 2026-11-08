@@ -7,7 +7,10 @@ import type { SimulationMetrics, SimulationExplanation, SavedExperimentRecord } 
 export type GradientDescentObjectiveId =
   | 'quadratic1d'
   | 'quadratic2d-isotropic'
-  | 'quadratic2d-anisotropic';
+  | 'quadratic2d-anisotropic'
+  | 'rosenbrock2d'
+  | 'saddle2d'
+  | 'rastrigin2d';
 
 export type OptimizerType = 'vanilla' | 'momentum' | 'adam';
 
@@ -199,6 +202,110 @@ export const GRADIENT_DESCENT_OBJECTIVES: Record<
       return [t1 - 3.0, 10.0 * (t2 - 2.0)];
     },
   },
+
+  // Model C1: 2D Rosenbrock Banana Valley (Non-Convex)
+  // J(theta) = (1 - theta_1)^2 + 10*(theta_2 - theta_1^2)^2
+  // Global minimum at [1.0, 1.0] with J* = 0.
+  rosenbrock2d: {
+    id: 'rosenbrock2d',
+    name: 'Rosenbrock Banana Valley',
+    dimension: 2,
+    description:
+      'J(θ) = (1 - θ₁)² + 10(θ₂ - θ₁²)². Narrow parabolic curved canyon with non-convex contours; tests cross-valley oscillation vs valley-floor progress.',
+    formulaLatex:
+      'J(\\boldsymbol{\\theta}) = (1 - \\theta_1)^2 + 10(\\theta_2 - \\theta_1^2)^2',
+    gradientLatex:
+      '\\nabla J(\\boldsymbol{\\theta}) = \\begin{bmatrix} 2(\\theta_1 - 1) - 40\\theta_1(\\theta_2 - \\theta_1^2) \\\\ 20(\\theta_2 - \\theta_1^2) \\end{bmatrix}',
+    globalOptimum: [1.0, 1.0],
+    minimumLoss: 0.0,
+    bounds: { min: [-2.0, -1.0], max: [2.0, 3.0] },
+    hessian: [
+      [82.0, -40.0],
+      [-40.0, 20.0],
+    ],
+    eigenvalues: { lambdaMax: 101.6, lambdaMin: 0.394 },
+    criticalLearningRate: 0.0196, // 2 / 101.6
+    evaluateLoss(theta: number[]): number {
+      const [t1, t2] = theta;
+      return (1.0 - t1) ** 2 + 10.0 * (t2 - t1 ** 2) ** 2;
+    },
+    evaluateGradient(theta: number[]): number[] {
+      const [t1, t2] = theta;
+      const d1 = 2.0 * (t1 - 1.0) - 40.0 * t1 * (t2 - t1 ** 2);
+      const d2 = 20.0 * (t2 - t1 ** 2);
+      return [d1, d2];
+    },
+  },
+
+  // Model C2: 2D Hyperbolic Saddle Point
+  // J(theta) = 0.5*theta_1^2 - 0.5*theta_2^2
+  // Stationary point at [0.0, 0.0] with J* = 0. Positive curvature along theta_1, negative along theta_2.
+  saddle2d: {
+    id: 'saddle2d',
+    name: 'Hyperbolic Saddle Point',
+    dimension: 2,
+    description:
+      'J(θ) = 0.5θ₁² - 0.5θ₂². Zero gradient at (0, 0) with indefinite Hessian (λ₁ = +1, λ₂ = -1). Demonstrates negative curvature and ridge instability.',
+    formulaLatex:
+      'J(\\boldsymbol{\\theta}) = \\frac{1}{2}\\theta_1^2 - \\frac{1}{2}\\theta_2^2',
+    gradientLatex:
+      '\\nabla J(\\boldsymbol{\\theta}) = \\begin{bmatrix} \\theta_1 \\\\ -\\theta_2 \\end{bmatrix}',
+    globalOptimum: [0.0, 0.0],
+    minimumLoss: 0.0,
+    bounds: { min: [-3.0, -3.0], max: [3.0, 3.0] },
+    hessian: [
+      [1.0, 0.0],
+      [0.0, -1.0],
+    ],
+    eigenvalues: { lambdaMax: 1.0, lambdaMin: -1.0 },
+    criticalLearningRate: 2.0,
+    evaluateLoss(theta: number[]): number {
+      const [t1, t2] = theta;
+      return 0.5 * t1 ** 2 - 0.5 * t2 ** 2;
+    },
+    evaluateGradient(theta: number[]): number[] {
+      const [t1, t2] = theta;
+      return [t1 === 0 ? 0 : t1, -t2 === 0 ? 0 : -t2];
+    },
+  },
+
+  // Model C3: 2D Rastrigin Multimodal Surface
+  // J(theta) = 20 + (theta_1^2 - 10*cos(2*pi*theta_1)) + (theta_2^2 - 10*cos(2*pi*theta_2))
+  // Global minimum at [0.0, 0.0] with J* = 0. Grid of local minima.
+  rastrigin2d: {
+    id: 'rastrigin2d',
+    name: 'Rastrigin Multimodal Surface',
+    dimension: 2,
+    description:
+      'J(θ) = 20 + ∑(θᵢ² - 10cos(2πθᵢ)). Highly multimodal surface with dense grid of local minima; demonstrates initialization sensitivity and local trapping.',
+    formulaLatex:
+      'J(\\boldsymbol{\\theta}) = 20 + (\\theta_1^2 - 10\\cos(2\\pi\\theta_1)) + (\\theta_2^2 - 10\\cos(2\\pi\\theta_2))',
+    gradientLatex:
+      '\\nabla J(\\boldsymbol{\\theta}) = \\begin{bmatrix} 2\\theta_1 + 20\\pi\\sin(2\\pi\\theta_1) \\\\ 2\\theta_2 + 20\\pi\\sin(2\\pi\\theta_2) \\end{bmatrix}',
+    globalOptimum: [0.0, 0.0],
+    minimumLoss: 0.0,
+    bounds: { min: [-2.5, -2.5], max: [2.5, 2.5] },
+    hessian: [
+      [2.0 + 40 * Math.PI ** 2, 0.0],
+      [0.0, 2.0 + 40 * Math.PI ** 2],
+    ],
+    eigenvalues: { lambdaMax: 396.8, lambdaMin: 396.8 },
+    criticalLearningRate: 0.005,
+    evaluateLoss(theta: number[]): number {
+      const [t1, t2] = theta;
+      return (
+        20.0 +
+        (t1 ** 2 - 10.0 * Math.cos(2.0 * Math.PI * t1)) +
+        (t2 ** 2 - 10.0 * Math.cos(2.0 * Math.PI * t2))
+      );
+    },
+    evaluateGradient(theta: number[]): number[] {
+      const [t1, t2] = theta;
+      const d1 = 2.0 * t1 + 20.0 * Math.PI * Math.sin(2.0 * Math.PI * t1);
+      const d2 = 2.0 * t2 + 20.0 * Math.PI * Math.sin(2.0 * Math.PI * t2);
+      return [d1, d2];
+    },
+  },
 };
 
 // -----------------------------------------------------------------------------
@@ -302,7 +409,7 @@ export function createGradientDescentSimulation(
     throw new Error(`Unknown objective ID: ${config.objectiveId}`);
   }
 
-  // Determine initial coordinates (defaults: 1D -> [0.5], 2D-iso -> [0.0, 5.0], 2D-aniso -> [0.5, 3.8])
+  // Determine initial coordinates (defaults: 1D -> [0.5], 2D-iso -> [0.0, 5.0], 2D-aniso -> [0.5, 3.8], Rosenbrock -> [-1.2, 1.0])
   const initialTheta =
     config.initialTheta && config.initialTheta.length === objective.dimension
       ? [...config.initialTheta]
@@ -310,6 +417,12 @@ export function createGradientDescentSimulation(
       ? [0.5]
       : objective.id === 'quadratic2d-anisotropic'
       ? [0.5, 3.8]
+      : objective.id === 'rosenbrock2d'
+      ? [-1.2, 1.0]
+      : objective.id === 'saddle2d'
+      ? [1.5, 0.1]
+      : objective.id === 'rastrigin2d'
+      ? [1.8, 1.4]
       : [0.0, 5.0];
 
   const initialLoss = objective.evaluateLoss(initialTheta);
@@ -428,11 +541,11 @@ export function stepGradientDescent(
   } else if (optimizerType === 'momentum') {
     const gamma = config.momentumGamma ?? 0.9;
     const prevVelocity = state.optimizerState.velocity ?? theta.map(() => 0.0);
-    // Polyak Heavy-Ball update:
-    // v_{t+1} = gamma * v_t + alpha * grad
-    // theta_{t+1} = theta_t - v_{t+1}
-    const nextVelocity = prevVelocity.map((v, i) => gamma * v + alpha * currentGrad[i]);
-    displacement = nextVelocity.map((v) => -v);
+    // Polyak Heavy-Ball canonical update (Polyak 1964):
+    // v_{t+1} = gamma * v_t + grad(theta_t)
+    // theta_{t+1} = theta_t - alpha * v_{t+1}
+    const nextVelocity = prevVelocity.map((v, i) => gamma * v + currentGrad[i]);
+    displacement = nextVelocity.map((v) => -alpha * v);
     nextOptimizerState = {
       type: 'momentum',
       velocity: nextVelocity,
@@ -446,7 +559,7 @@ export function stepGradientDescent(
     const prevT = state.optimizerState.t ?? 0;
     const nextT = prevT + 1;
 
-    // Adam update:
+    // Adam update (Kingma & Ba, 2014):
     // m_t = beta1 * m_{t-1} + (1 - beta1) * g_t
     // v_t = beta2 * v_{t-1} + (1 - beta2) * g_t^2
     const nextM = prevM.map((mVal, i) => beta1 * mVal + (1 - beta1) * currentGrad[i]);
@@ -459,7 +572,12 @@ export function stepGradientDescent(
     const mHat = nextM.map((mVal) => mVal / biasCorrection1);
     const vHat = nextV.map((vVal) => vVal / biasCorrection2);
 
-    displacement = mHat.map((mVal, i) => -alpha * (mVal / (Math.sqrt(vHat[i]) + eps)));
+    // Coordinate-wise rescaled step displacement with Kingma & Ba (2014) epsilon placement:
+    // When gradient is zero and m is zero, displacement is strictly zero.
+    displacement = mHat.map((mVal, i) => {
+      if (Math.abs(mVal) < 1e-15) return 0.0;
+      return -alpha * (mVal / (Math.sqrt(vHat[i]) + eps));
+    });
     nextOptimizerState = {
       type: 'adam',
       m: nextM,
@@ -905,16 +1023,64 @@ export class GradientDescentSimulationEngine {
 // 6. MULTI-OPTIMIZER COMPARISON LABORATORY API (Phase 2)
 // -----------------------------------------------------------------------------
 
+export type ComparisonTuningMode = 'identical' | 'tuned';
+
 export interface OptimizerComparisonConfig {
   objectiveId: GradientDescentObjectiveId;
   initialTheta?: number[];
-  learningRate: number; // shared alpha
+  tuningMode?: ComparisonTuningMode; // 'identical' (default) or 'tuned'
+  learningRate?: number; // shared alpha (used in 'identical' mode)
   momentumGamma?: number; // default: 0.9
   adamBeta1?: number; // default: 0.9
   adamBeta2?: number; // default: 0.999
   adamEpsilon?: number; // default: 1e-8
   maxIterations?: number; // default: 50
   gradientTolerance?: number; // default: 1e-4
+  tunedLearningRates?: {
+    vanilla: number;
+    momentum: number;
+    adam: number;
+  };
+}
+
+export function getRecommendedTunedRates(objectiveId: GradientDescentObjectiveId): {
+  vanilla: number;
+  momentum: number;
+  adam: number;
+} {
+  switch (objectiveId) {
+    case 'quadratic2d-anisotropic':
+      return { vanilla: 0.18, momentum: 0.08, adam: 0.35 };
+    case 'rosenbrock2d':
+      return { vanilla: 0.002, momentum: 0.001, adam: 0.05 };
+    case 'saddle2d':
+      return { vanilla: 0.1, momentum: 0.05, adam: 0.15 };
+    case 'rastrigin2d':
+      return { vanilla: 0.01, momentum: 0.005, adam: 0.04 };
+    case 'quadratic2d-isotropic':
+      return { vanilla: 0.5, momentum: 0.3, adam: 0.6 };
+    case 'quadratic1d':
+    default:
+      return { vanilla: 0.8, momentum: 0.4, adam: 0.5 };
+  }
+}
+
+export function getDefaultIdenticalRate(objectiveId: GradientDescentObjectiveId): number {
+  switch (objectiveId) {
+    case 'rosenbrock2d':
+      return 0.002;
+    case 'saddle2d':
+      return 0.1;
+    case 'rastrigin2d':
+      return 0.01;
+    case 'quadratic2d-anisotropic':
+      return 0.15;
+    case 'quadratic2d-isotropic':
+      return 0.3;
+    case 'quadratic1d':
+    default:
+      return 0.5;
+  }
 }
 
 export interface OptimizerComparisonSnapshot {
@@ -939,6 +1105,9 @@ export function createOptimizerComparison(
   config: OptimizerComparisonConfig
 ): OptimizerComparisonState {
   const objective = GRADIENT_DESCENT_OBJECTIVES[config.objectiveId];
+  if (!objective) {
+    throw new Error(`Unknown objective ID: ${config.objectiveId}`);
+  }
   const initialTheta =
     config.initialTheta && config.initialTheta.length === objective.dimension
       ? [...config.initialTheta]
@@ -946,29 +1115,56 @@ export function createOptimizerComparison(
       ? [0.5]
       : objective.id === 'quadratic2d-anisotropic'
       ? [0.5, 3.8]
+      : objective.id === 'rosenbrock2d'
+      ? [-1.2, 1.0]
+      : objective.id === 'saddle2d'
+      ? [1.5, 0.1]
+      : objective.id === 'rastrigin2d'
+      ? [1.8, 1.4]
       : [0.0, 5.0];
+
+  const tuningMode = config.tuningMode ?? 'identical';
+  const tunedDefaults = getRecommendedTunedRates(config.objectiveId);
+  const identicalAlpha = config.learningRate ?? getDefaultIdenticalRate(config.objectiveId);
+
+  const vanillaAlpha =
+    tuningMode === 'tuned'
+      ? config.tunedLearningRates?.vanilla ?? tunedDefaults.vanilla
+      : identicalAlpha;
+
+  const momentumAlpha =
+    tuningMode === 'tuned'
+      ? config.tunedLearningRates?.momentum ?? tunedDefaults.momentum
+      : identicalAlpha;
+
+  const adamAlpha =
+    tuningMode === 'tuned'
+      ? config.tunedLearningRates?.adam ?? tunedDefaults.adam
+      : identicalAlpha;
 
   const commonParams = {
     objectiveId: config.objectiveId,
     initialTheta,
-    learningRate: config.learningRate,
     maxIterations: config.maxIterations ?? 50,
     gradientTolerance: config.gradientTolerance ?? 1e-4,
   };
 
   const vanilla = createGradientDescentSimulation({
     ...commonParams,
+    learningRate: vanillaAlpha,
     optimizer: 'vanilla',
   });
 
   const momentum = createGradientDescentSimulation({
     ...commonParams,
+    learningRate: momentumAlpha,
     optimizer: 'momentum',
     momentumGamma: config.momentumGamma ?? 0.9,
   });
 
   const adam = createGradientDescentSimulation({
     ...commonParams,
+    learningRate: adamAlpha,
     optimizer: 'adam',
     adamBeta1: config.adamBeta1 ?? 0.9,
     adamBeta2: config.adamBeta2 ?? 0.999,

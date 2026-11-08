@@ -526,11 +526,12 @@ test('TC-GD-19: Polyak Momentum velocity accumulation and bidirectional state re
   assert.deepEqual(state.optimizerState.velocity, [0, 0]);
 
   // Step 1: grad = [-3.0, 10.0]
-  // v_1 = 0.9 * [0, 0] + 0.05 * [-3.0, 10.0] = [-0.15, 0.50]
-  // theta_1 = [0.0 - (-0.15), 3.0 - 0.50] = [0.15, 2.50]
+  // Canonical Polyak convention:
+  // v_1 = 0.9 * [0, 0] + [-3.0, 10.0] = [-3.0, 10.0]
+  // theta_1 = [0.0 - 0.05 * (-3.0), 3.0 - 0.05 * 10.0] = [0.15, 2.50]
   state = stepGradientDescent(state);
-  assert.ok(Math.abs(state.optimizerState.velocity[0] - (-0.15)) < 1e-6);
-  assert.ok(Math.abs(state.optimizerState.velocity[1] - 0.50) < 1e-6);
+  assert.ok(Math.abs(state.optimizerState.velocity[0] - (-3.0)) < 1e-6);
+  assert.ok(Math.abs(state.optimizerState.velocity[1] - 10.0) < 1e-6);
   assert.ok(Math.abs(state.theta[0] - 0.15) < 1e-6);
   assert.ok(Math.abs(state.theta[1] - 2.50) < 1e-6);
 
@@ -633,5 +634,266 @@ test('TC-GD-21: Multi-Optimizer Comparison runner forward and backward synchroni
   assert.deepEqual(compState.vanilla.theta, [0.0, 3.5]);
   assert.deepEqual(compState.momentum.theta, [0.0, 3.5]);
   assert.deepEqual(compState.adam.theta, [0.0, 3.5]);
+});
+
+// -----------------------------------------------------------------------------
+// 8. HAND-CALCULATED OPTIMIZER EQUATIONS & EXTENDED ARCHITECTURE TESTS
+// -----------------------------------------------------------------------------
+
+test('TC-GD-22: Hand-calculated Polyak Momentum step 1 & step 2 arithmetic verification', () => {
+  // Analytical test on J(theta) = 0.5(theta - 3.5)^2 + 1
+  // theta_0 = 1.5, alpha = 0.1, gamma = 0.9, v_0 = 0
+  let state = createGradientDescentSimulation({
+    objectiveId: 'quadratic1d',
+    optimizer: 'momentum',
+    learningRate: 0.1,
+    momentumGamma: 0.9,
+    initialTheta: [1.5],
+  });
+
+  assert.equal(state.theta[0], 1.5);
+  assert.equal(state.optimizerState.velocity[0], 0.0);
+
+  // Step 1:
+  // g_0 = 1.5 - 3.5 = -2.0
+  // v_1 = 0.9(0) + (-2.0) = -2.0
+  // Delta theta = -alpha * v_1 = -(0.1)(-2.0) = +0.2
+  // theta_1 = 1.5 + 0.2 = 1.7
+  // loss_1 = 0.5(1.7 - 3.5)^2 + 1 = 0.5(-1.8)^2 + 1 = 2.62
+  state = stepGradientDescent(state);
+  assert.ok(Math.abs(state.optimizerState.velocity[0] - (-2.0)) < 1e-12, 'v_1 must equal exactly -2.0');
+  assert.ok(Math.abs(state.theta[0] - 1.7) < 1e-12, 'theta_1 must equal exactly 1.7');
+  assert.ok(Math.abs(state.loss - 2.62) < 1e-12, 'loss_1 must equal exactly 2.62');
+
+  // Step 2:
+  // g_1 = 1.7 - 3.5 = -1.8
+  // v_2 = 0.9(-2.0) + (-1.8) = -1.8 - 1.8 = -3.6
+  // Delta theta = -0.1(-3.6) = +0.36
+  // theta_2 = 1.7 + 0.36 = 2.06
+  // loss_2 = 0.5(2.06 - 3.5)^2 + 1 = 0.5(-1.44)^2 + 1 = 2.0368
+  state = stepGradientDescent(state);
+  assert.ok(Math.abs(state.optimizerState.velocity[0] - (-3.6)) < 1e-12, 'v_2 must equal exactly -3.6');
+  assert.ok(Math.abs(state.theta[0] - 2.06) < 1e-12, 'theta_2 must equal exactly 2.06');
+  assert.ok(Math.abs(state.loss - 2.0368) < 1e-12, 'loss_2 must equal exactly 2.0368');
+
+  // Reversibility to step 1 and step 0:
+  state = stepBackGradientDescent(state);
+  assert.ok(Math.abs(state.theta[0] - 1.7) < 1e-12);
+  assert.ok(Math.abs(state.optimizerState.velocity[0] - (-2.0)) < 1e-12);
+
+  state = stepBackGradientDescent(state);
+  assert.ok(Math.abs(state.theta[0] - 1.5) < 1e-12);
+  assert.ok(Math.abs(state.optimizerState.velocity[0] - 0.0) < 1e-12);
+});
+
+test('TC-GD-23: Hand-calculated Adam step 1 & step 2 bias-corrected moments verification', () => {
+  // Analytical test on J(theta) = 0.5(theta - 3.5)^2 + 1
+  // theta_0 = 1.5, alpha = 0.1, beta1 = 0.9, beta2 = 0.999, eps = 1e-8
+  let state = createGradientDescentSimulation({
+    objectiveId: 'quadratic1d',
+    optimizer: 'adam',
+    learningRate: 0.1,
+    adamBeta1: 0.9,
+    adamBeta2: 0.999,
+    adamEpsilon: 1e-8,
+    initialTheta: [1.5],
+  });
+
+  // Step 1:
+  // g_0 = -2.0
+  // m_1 = 0.9(0) + 0.1(-2.0) = -0.2
+  // v_1 = 0.999(0) + 0.001((-2.0)^2) = 0.004
+  // Bias corrections at t=1:
+  // 1 - beta1^1 = 0.1 => mHat_1 = -0.2 / 0.1 = -2.0
+  // 1 - beta2^1 = 0.001 => vHat_1 = 0.004 / 0.001 = 4.0
+  // sqrt(vHat_1) = 2.0
+  // Delta theta_0 = -0.1 * (-2.0 / (2.0 + 1e-8)) = +0.1000000005
+  // theta_1 = 1.5 + 0.1000000005 = 1.6000000005
+  state = stepGradientDescent(state);
+  assert.equal(state.optimizerState.t, 1);
+  assert.ok(Math.abs(state.optimizerState.m[0] - (-0.2)) < 1e-12, 'm_1 must equal -0.2');
+  assert.ok(Math.abs(state.optimizerState.v[0] - 0.004) < 1e-12, 'v_1 must equal 0.004');
+  assert.ok(Math.abs(state.theta[0] - 1.6) < 1e-6, 'theta_1 must equal ~1.6');
+
+  // Step 2:
+  // theta_1 approx 1.6 => g_1 approx -1.9 (with small eps offset)
+  // m_2 approx -0.37
+  // v_2 approx 0.007606
+  state = stepGradientDescent(state);
+  assert.equal(state.optimizerState.t, 2);
+  assert.ok(Math.abs(state.optimizerState.m[0] - (-0.37)) < 1e-6, 'm_2 must equal -0.37');
+  assert.ok(Math.abs(state.optimizerState.v[0] - 0.007606) < 1e-6, 'v_2 must equal 0.007606');
+  assert.ok(Math.abs(state.theta[0] - 1.6998335) < 1e-4, 'theta_2 must equal ~1.6998335');
+});
+
+test('TC-GD-24: Adam zero-gradient invariant test (grad = 0 implies zero displacement)', () => {
+  // Starting at optimum theta* = 3.5
+  let state = createGradientDescentSimulation({
+    objectiveId: 'quadratic1d',
+    optimizer: 'adam',
+    learningRate: 0.2,
+    initialTheta: [3.5],
+  });
+
+  assert.equal(state.gradientNorm, 0.0);
+  assert.equal(state.isConverged, true);
+
+  // Take 3 steps: coordinates must remain strictly unchanged at 3.5
+  for (let i = 0; i < 3; i++) {
+    state = stepGradientDescent(state);
+    assert.equal(state.theta[0], 3.5);
+    assert.equal(state.optimizerState.m[0], 0.0);
+    assert.equal(state.optimizerState.v[0], 0.0);
+  }
+});
+
+test('TC-GD-25: Full bidirectional state reversibility of all Adam moment tensors and timestep', () => {
+  let state = createGradientDescentSimulation({
+    objectiveId: 'quadratic2d-anisotropic',
+    optimizer: 'adam',
+    learningRate: 0.1,
+    initialTheta: [1.0, 3.0],
+  });
+
+  for (let i = 0; i < 4; i++) {
+    state = stepGradientDescent(state);
+  }
+  const snapStep4 = JSON.parse(JSON.stringify(state));
+
+  // Step back 4 times to initial state
+  for (let i = 0; i < 4; i++) {
+    state = stepBackGradientDescent(state);
+  }
+  assert.equal(state.optimizerState.t, 0);
+  assert.deepEqual(state.optimizerState.m, [0, 0]);
+  assert.deepEqual(state.optimizerState.v, [0, 0]);
+  assert.deepEqual(state.theta, [1.0, 3.0]);
+
+  // Step forward 4 times again: exact reproduction
+  for (let i = 0; i < 4; i++) {
+    state = stepGradientDescent(state);
+  }
+  assert.equal(state.optimizerState.t, snapStep4.optimizerState.t);
+  assert.deepEqual(state.optimizerState.m, snapStep4.optimizerState.m);
+  assert.deepEqual(state.optimizerState.v, snapStep4.optimizerState.v);
+  assert.deepEqual(state.theta, snapStep4.theta);
+});
+
+test('TC-GD-26: Rosenbrock valley analytical gradient and finite-difference validation', () => {
+  const rosenbrock = GRADIENT_DESCENT_OBJECTIVES['rosenbrock2d'];
+  assert.ok(rosenbrock);
+
+  // Test at global minimum [1.0, 1.0]
+  assert.equal(rosenbrock.evaluateLoss([1.0, 1.0]), 0.0);
+  const gradAtOpt = rosenbrock.evaluateGradient([1.0, 1.0]);
+  assert.deepEqual(gradAtOpt, [0.0, 0.0]);
+
+  // Test at test point [-1.2, 1.0]
+  // J = (1 - (-1.2))^2 + 10(1 - 1.44)^2 = 2.2^2 + 10(-0.44)^2 = 4.84 + 1.936 = 6.776
+  const lossAtTest = rosenbrock.evaluateLoss([-1.2, 1.0]);
+  assert.ok(Math.abs(lossAtTest - 6.776) < 1e-12);
+
+  // Finite difference gradient validation across multiple points
+  const testPoints = [
+    [-1.2, 1.0],
+    [0.0, 0.0],
+    [0.5, 0.25],
+    [1.5, 2.25],
+  ];
+
+  for (const pt of testPoints) {
+    const analyticalGrad = rosenbrock.evaluateGradient(pt);
+    const numGrad = finiteDifferenceGradient(rosenbrock, pt, 1e-6);
+    assert.ok(Math.abs(analyticalGrad[0] - numGrad[0]) < 1e-4, `Grad theta1 mismatch at [${pt}]`);
+    assert.ok(Math.abs(analyticalGrad[1] - numGrad[1]) < 1e-4, `Grad theta2 mismatch at [${pt}]`);
+  }
+});
+
+test('TC-GD-27: Saddle point negative curvature & escape behavior', () => {
+  const saddle = GRADIENT_DESCENT_OBJECTIVES['saddle2d'];
+  assert.ok(saddle);
+
+  // Stationary point at (0, 0)
+  assert.equal(saddle.evaluateLoss([0.0, 0.0]), 0.0);
+  assert.deepEqual(saddle.evaluateGradient([0.0, 0.0]), [0.0, 0.0]);
+
+  // Off-axis point [1.0, 0.1]
+  // grad = [1.0, -0.1]
+  const grad = saddle.evaluateGradient([1.0, 0.1]);
+  assert.deepEqual(grad, [1.0, -0.1]);
+
+  let state = createGradientDescentSimulation({
+    objectiveId: 'saddle2d',
+    optimizer: 'vanilla',
+    learningRate: 0.1,
+    initialTheta: [1.0, 0.1],
+  });
+
+  // Step 1:
+  // theta1: 1.0 - 0.1(1.0) = 0.90 (contracting towards 0)
+  // theta2: 0.1 - 0.1(-0.1) = 0.11 (repelled away along negative curvature direction)
+  state = stepGradientDescent(state);
+  assert.ok(Math.abs(state.theta[0] - 0.90) < 1e-6, 'theta1 must contract towards saddle center');
+  assert.ok(Math.abs(state.theta[1] - 0.11) < 1e-6, 'theta2 must be repelled away along crest');
+});
+
+test('TC-GD-28: Rastrigin function multimodal local minima trapping test', () => {
+  const rastrigin = GRADIENT_DESCENT_OBJECTIVES['rastrigin2d'];
+  assert.ok(rastrigin);
+
+  // Global minimum at (0, 0)
+  assert.equal(rastrigin.evaluateLoss([0.0, 0.0]), 0.0);
+  const gradAtOpt = rastrigin.evaluateGradient([0.0, 0.0]);
+  assert.ok(Math.abs(gradAtOpt[0]) < 1e-12);
+  assert.ok(Math.abs(gradAtOpt[1]) < 1e-12);
+
+  // Initialize near local minimum (0.95, 0.0)
+  let state = createGradientDescentSimulation({
+    objectiveId: 'rastrigin2d',
+    optimizer: 'vanilla',
+    learningRate: 0.005,
+    initialTheta: [0.95, 0.0],
+  });
+
+  // Run 20 steps
+  for (let i = 0; i < 20; i++) {
+    state = stepGradientDescent(state);
+  }
+
+  // Parameter should get trapped near local minimum theta1 ~ 1.0 (loss > 0.9), unable to reach global minimum (0,0)
+  assert.ok(Math.abs(state.theta[0] - 1.0) < 0.1, 'Trapped in local minimum near 1.0');
+  assert.ok(state.loss > 0.9, 'Loss trapped at local minimum floor, not global 0');
+});
+
+test('TC-GD-29: Optimizer Comparison mode toggle test (identical vs tuned)', () => {
+  // Test 'identical' mode
+  const identicalComp = createOptimizerComparison({
+    objectiveId: 'quadratic2d-anisotropic',
+    tuningMode: 'identical',
+    learningRate: 0.15,
+  });
+
+  assert.equal(identicalComp.vanilla.config.learningRate, 0.15);
+  assert.equal(identicalComp.momentum.config.learningRate, 0.15);
+  assert.equal(identicalComp.adam.config.learningRate, 0.15);
+
+  // Test 'tuned' mode
+  const tunedComp = createOptimizerComparison({
+    objectiveId: 'quadratic2d-anisotropic',
+    tuningMode: 'tuned',
+  });
+
+  assert.equal(tunedComp.vanilla.config.learningRate, 0.18);
+  assert.equal(tunedComp.momentum.config.learningRate, 0.08);
+  assert.equal(tunedComp.adam.config.learningRate, 0.35);
+
+  // Step tuned comparison forward and backward
+  let stepped = stepOptimizerComparison(tunedComp);
+  assert.equal(stepped.stepNumber, 1);
+  let back = stepBackOptimizerComparison(stepped);
+  assert.equal(back.stepNumber, 0);
+  assert.deepEqual(back.vanilla.theta, tunedComp.vanilla.theta);
+  assert.deepEqual(back.momentum.theta, tunedComp.momentum.theta);
+  assert.deepEqual(back.adam.theta, tunedComp.adam.theta);
 });
 

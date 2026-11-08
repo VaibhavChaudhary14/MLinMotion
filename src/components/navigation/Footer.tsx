@@ -32,23 +32,23 @@ export const Footer: React.FC = () => {
           </span>
           <ul className="space-y-1.5 text-xs text-[#5C544B]">
             <li>
-              <Link href="/concepts" className="hover:text-[#1A1715] transition-colors">
-                Concept Cards (14 Units)
-              </Link>
-            </li>
-            <li>
               <Link href="/lessons" className="hover:text-[#1A1715] transition-colors">
                 12-Stage Curriculum
               </Link>
             </li>
             <li>
-              <Link href="/lab" className="hover:text-[#1A1715] transition-colors">
-                Algorithm Lab
+              <Link href="/concepts" className="hover:text-[#1A1715] transition-colors">
+                Concept Cards (14 Units)
               </Link>
             </li>
             <li>
               <Link href="/cinema" className="hover:text-[#1A1715] transition-colors">
                 Algorithm Cinema
+              </Link>
+            </li>
+            <li>
+              <Link href="/lab" className="hover:text-[#1A1715] transition-colors">
+                Algorithm Lab
               </Link>
             </li>
           </ul>
@@ -57,19 +57,9 @@ export const Footer: React.FC = () => {
         {/* Right Column (4 cols): PLATFORM links */}
         <div className="md:col-span-4 space-y-2.5">
           <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[#1848B8] block">
-            PLATFORM & ETHICS
+            TOOLS & PLATFORM
           </span>
           <ul className="space-y-1.5 text-xs text-[#5C544B]">
-            <li>
-              <Link href="/about" className="hover:text-[#1A1715] transition-colors">
-                About & Methodology
-              </Link>
-            </li>
-            <li>
-              <Link href="/privacy" className="hover:text-[#1A1715] transition-colors">
-                Privacy & Data Ethics
-              </Link>
-            </li>
             <li>
               <Link href="/compare" className="hover:text-[#1A1715] transition-colors">
                 Comparison Studio
@@ -78,6 +68,26 @@ export const Footer: React.FC = () => {
             <li>
               <Link href="/datalab" className="hover:text-[#1A1715] transition-colors">
                 My Data Lab
+              </Link>
+            </li>
+            <li>
+              <Link href="/quiz" className="hover:text-[#1A1715] transition-colors">
+                Diagnostic Quiz
+              </Link>
+            </li>
+            <li>
+              <Link href="/dashboard" className="hover:text-[#1A1715] transition-colors">
+                Learning Dashboard
+              </Link>
+            </li>
+            <li>
+              <Link href="/about" className="hover:text-[#1A1715] transition-colors">
+                About & Methodology
+              </Link>
+            </li>
+            <li>
+              <Link href="/privacy" className="hover:text-[#1A1715] transition-colors">
+                Privacy & Data Ethics
               </Link>
             </li>
           </ul>

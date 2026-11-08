@@ -12,10 +12,13 @@ import {
   createOptimizerComparison,
   stepOptimizerComparison,
   stepBackOptimizerComparison,
+  getRecommendedTunedRates,
+  getDefaultIdenticalRate,
   GRADIENT_DESCENT_OBJECTIVES,
   GradientDescentObjectiveId,
   GradientDescentSimulationState,
   OptimizerComparisonState,
+  ComparisonTuningMode,
   OptimizerType,
   vectorNorm,
 } from '@/lib/simulation/gradientDescentEngine';
@@ -49,6 +52,7 @@ export const GradientDescentWorkbench: React.FC = () => {
   // Mode State: Single Optimizer vs Triple Comparison Studio
   const [isStudioMode, setIsStudioMode] = useState<boolean>(false);
   const [selectedOptimizer, setSelectedOptimizer] = useState<OptimizerType>('vanilla');
+  const [tuningMode, setTuningMode] = useState<ComparisonTuningMode>('identical');
 
   // Objective & Hyperparameter State
   const [objectiveId, setObjectiveId] =
@@ -69,10 +73,11 @@ export const GradientDescentWorkbench: React.FC = () => {
     })
   );
 
-  // Triple Optimizer Comparison State (Phase 2)
+  // Triple Optimizer Comparison State (Phase 2 & 3)
   const [compState, setCompState] = useState<OptimizerComparisonState>(() =>
     createOptimizerComparison({
       objectiveId: 'quadratic2d-anisotropic',
+      tuningMode: 'identical',
       learningRate: 0.08,
       initialTheta: [0.5, 3.8],
       maxIterations: 50,
@@ -102,14 +107,16 @@ export const GradientDescentWorkbench: React.FC = () => {
     newAlpha = learningRate,
     newOpt = selectedOptimizer,
     init1D = initialTheta1D,
-    init2D = initialTheta2D
+    init2D = initialTheta2D,
+    newTuningMode = tuningMode
   ) => {
     setIsPlaying(false);
     setUserPrediction(null);
     setHasRevealedPrediction(false);
 
+    const targetObj = GRADIENT_DESCENT_OBJECTIVES[newObjId];
     const initTheta =
-      GRADIENT_DESCENT_OBJECTIVES[newObjId].dimension === 1 ? [init1D] : [init2D[0], init2D[1]];
+      targetObj.dimension === 1 ? [init1D] : [init2D[0], init2D[1]];
 
     // Reinitialize single simulation
     const freshState = createGradientDescentSimulation({
@@ -122,10 +129,13 @@ export const GradientDescentWorkbench: React.FC = () => {
     setSimState(freshState);
 
     // Reinitialize comparison simulation (for 2D)
+    const compObjId = newObjId === 'quadratic1d' ? 'quadratic2d-anisotropic' : newObjId;
+    const compInitTheta = newObjId === 'quadratic1d' ? [init2D[0], init2D[1]] : initTheta;
     const freshCompState = createOptimizerComparison({
-      objectiveId: newObjId === 'quadratic1d' ? 'quadratic2d-anisotropic' : newObjId,
+      objectiveId: compObjId,
+      tuningMode: newTuningMode,
       learningRate: newAlpha,
-      initialTheta: newObjId === 'quadratic1d' ? [init2D[0], init2D[1]] : initTheta,
+      initialTheta: compInitTheta,
       maxIterations,
     });
     setCompState(freshCompState);
@@ -190,11 +200,23 @@ export const GradientDescentWorkbench: React.FC = () => {
   // Handle Objective Switch
   const handleObjectiveChange = (newId: GradientDescentObjectiveId) => {
     setObjectiveId(newId);
-    let defaultAlpha = 0.4;
-    if (newId === 'quadratic2d-anisotropic') defaultAlpha = 0.08;
-    else if (newId === 'quadratic2d-isotropic') defaultAlpha = 0.3;
+    const defaultAlpha = getDefaultIdenticalRate(newId);
     setLearningRate(defaultAlpha);
-    reinitialize(newId, defaultAlpha);
+
+    let newInit2D: [number, number] = [0.5, 3.8];
+    if (newId === 'rosenbrock2d') newInit2D = [-1.2, 1.0];
+    else if (newId === 'saddle2d') newInit2D = [1.5, 0.1];
+    else if (newId === 'rastrigin2d') newInit2D = [1.8, 1.4];
+    else if (newId === 'quadratic2d-isotropic') newInit2D = [0.0, 5.0];
+
+    setInitialTheta2D(newInit2D);
+    reinitialize(newId, defaultAlpha, selectedOptimizer, initialTheta1D, newInit2D, tuningMode);
+  };
+
+  // Handle Tuning Mode Switch (Fairness Toggle)
+  const handleTuningModeChange = (mode: ComparisonTuningMode) => {
+    setTuningMode(mode);
+    reinitialize(objectiveId, learningRate, selectedOptimizer, initialTheta1D, initialTheta2D, mode);
   };
 
   // Handle Optimizer Switch (in single mode)
@@ -266,11 +288,12 @@ export const GradientDescentWorkbench: React.FC = () => {
   const tangentX2 = toSvgX1D(currentTheta1D + 1.2);
   const tangentY2 = toSvgY1D(currentLoss1D + 1.2 * tangentSlope);
 
-  // 2D: theta1 in [-1, 7], theta2 in [-1, 5]
-  const minT1 = -1.0;
-  const maxT1 = 7.0;
-  const minT2 = -1.0;
-  const maxT2 = 5.0;
+  // 2D: Dynamic bounds based on active landscape
+  const activeObj = isStudioMode ? compState.objective : currentObjective;
+  const minT1 = activeObj.bounds?.min[0] ?? -1.0;
+  const maxT1 = activeObj.bounds?.max[0] ?? 7.0;
+  const minT2 = activeObj.bounds?.min[1] ?? -1.0;
+  const maxT2 = activeObj.bounds?.max[1] ?? 5.0;
   const toSvgX2D = (t1: number) => 50 + ((t1 - minT1) / (maxT1 - minT1)) * 500;
   const toSvgY2D = (t2: number) => 370 - ((t2 - minT2) / (maxT2 - minT2)) * 340;
 
@@ -288,7 +311,7 @@ export const GradientDescentWorkbench: React.FC = () => {
 
     setInitialTheta2D([clampedT1, clampedT2]);
     setIsClickPlacing(false);
-    reinitialize(objectiveId, learningRate, selectedOptimizer, initialTheta1D, [clampedT1, clampedT2]);
+    reinitialize(objectiveId, learningRate, selectedOptimizer, initialTheta1D, [clampedT1, clampedT2], tuningMode);
   };
 
   const contourLevels = [0.25, 0.75, 1.5, 3.0, 6.0, 10.0, 16.0];
@@ -433,75 +456,131 @@ export const GradientDescentWorkbench: React.FC = () => {
                   : 'bg-[#FAF7F0] text-[#1A1715] hover:bg-[#E8E1D3]'
               }`}
             >
-              2D ANISOTROPIC VALLEY (κ = 10)
+              2D ANISOTROPIC (κ = 10)
+            </button>
+            <button
+              onClick={() => handleObjectiveChange('rosenbrock2d')}
+              className={`px-3 py-1 border border-[#1A1715] font-black transition-all ${
+                objectiveId === 'rosenbrock2d'
+                  ? 'bg-[#C83226] text-[#FAF7F0] shadow-[2px_2px_0px_#1A1715]'
+                  : 'bg-[#FAF7F0] text-[#1A1715] hover:bg-[#E8E1D3]'
+              }`}
+            >
+              ROSENBROCK (NON-CONVEX)
+            </button>
+            <button
+              onClick={() => handleObjectiveChange('saddle2d')}
+              className={`px-3 py-1 border border-[#1A1715] font-black transition-all ${
+                objectiveId === 'saddle2d'
+                  ? 'bg-[#6E3867] text-[#FAF7F0] shadow-[2px_2px_0px_#1A1715]'
+                  : 'bg-[#FAF7F0] text-[#1A1715] hover:bg-[#E8E1D3]'
+              }`}
+            >
+              SADDLE POINT
+            </button>
+            <button
+              onClick={() => handleObjectiveChange('rastrigin2d')}
+              className={`px-3 py-1 border border-[#1A1715] font-black transition-all ${
+                objectiveId === 'rastrigin2d'
+                  ? 'bg-[#33634B] text-[#FAF7F0] shadow-[2px_2px_0px_#1A1715]'
+                  : 'bg-[#FAF7F0] text-[#1A1715] hover:bg-[#E8E1D3]'
+              }`}
+            >
+              RASTRIGIN
             </button>
           </div>
 
-          {/* Quick Regime Presets */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-bold text-[#5C544B] uppercase text-[10px]">PRESET α:</span>
-            {objectiveId === 'quadratic1d' ? (
-              <>
-                <button
-                  onClick={() => applyPreset(0.4, 'Monotonic')}
-                  className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#33634B] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
-                >
-                  Monotonic (0.4)
-                </button>
-                <button
-                  onClick={() => applyPreset(1.0, 'Deadbeat')}
-                  className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#1848B8] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
-                >
-                  Deadbeat (1.0)
-                </button>
-                <button
-                  onClick={() => applyPreset(1.6, 'Oscillating')}
-                  className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#E28C05] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
-                >
-                  Oscillate (1.6)
-                </button>
-                <button
-                  onClick={() => applyPreset(2.0, 'Limit Cycle')}
-                  className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#6E3867] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
-                >
-                  Limit Cycle (2.0)
-                </button>
-                <button
-                  onClick={() => applyPreset(2.2, 'Divergent')}
-                  className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#C83226] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
-                >
-                  Divergent (2.2)
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => applyPreset(objectiveId === 'quadratic2d-anisotropic' ? 0.05 : 0.25, 'Stable')}
-                  className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#33634B] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
-                >
-                  Conservative ({objectiveId === 'quadratic2d-anisotropic' ? '0.05' : '0.25'})
-                </button>
-                <button
-                  onClick={() => applyPreset(objectiveId === 'quadratic2d-anisotropic' ? 0.15 : 1.5, 'Oscillate')}
-                  className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#E28C05] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
-                >
-                  Cross-Wall ({objectiveId === 'quadratic2d-anisotropic' ? '0.15' : '1.50'})
-                </button>
-                <button
-                  onClick={() => applyPreset(objectiveId === 'quadratic2d-anisotropic' ? 0.20 : 2.0, 'Critical')}
-                  className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#6E3867] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
-                >
-                  Critical Edge ({objectiveId === 'quadratic2d-anisotropic' ? '0.20' : '2.00'})
-                </button>
-                <button
-                  onClick={() => applyPreset(objectiveId === 'quadratic2d-anisotropic' ? 0.24 : 2.2, 'Divergent')}
-                  className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#C83226] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
-                >
-                  Divergent ({objectiveId === 'quadratic2d-anisotropic' ? '0.24' : '2.20'})
-                </button>
-              </>
-            )}
-          </div>
+          {/* Fairness Protocol Switcher in Studio Mode */}
+          {isStudioMode ? (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-bold text-[#5C544B] uppercase text-[10px]">FAIRNESS MODE:</span>
+              <button
+                onClick={() => handleTuningModeChange('identical')}
+                className={`px-2 py-0.5 border border-[#1A1715] text-[10px] font-black transition-colors ${
+                  tuningMode === 'identical'
+                    ? 'bg-[#1848B8] text-[#FAF7F0]'
+                    : 'bg-[#FAF7F0] text-[#1A1715] hover:bg-[#E8E1D3]'
+                }`}
+              >
+                IDENTICAL α ({compState.config.learningRate ?? learningRate})
+              </button>
+              <button
+                onClick={() => handleTuningModeChange('tuned')}
+                className={`px-2 py-0.5 border border-[#1A1715] text-[10px] font-black transition-colors ${
+                  tuningMode === 'tuned'
+                    ? 'bg-[#E28C05] text-[#1A1715]'
+                    : 'bg-[#FAF7F0] text-[#1A1715] hover:bg-[#E8E1D3]'
+                }`}
+              >
+                INDIVIDUALLY TUNED
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-bold text-[#5C544B] uppercase text-[10px]">PRESET α:</span>
+              {objectiveId === 'quadratic1d' ? (
+                <>
+                  <button
+                    onClick={() => applyPreset(0.4, 'Monotonic')}
+                    className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#33634B] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
+                  >
+                    Monotonic (0.4)
+                  </button>
+                  <button
+                    onClick={() => applyPreset(1.0, 'Deadbeat')}
+                    className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#1848B8] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
+                  >
+                    Deadbeat (1.0)
+                  </button>
+                  <button
+                    onClick={() => applyPreset(1.6, 'Oscillating')}
+                    className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#E28C05] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
+                  >
+                    Oscillate (1.6)
+                  </button>
+                  <button
+                    onClick={() => applyPreset(2.0, 'Limit Cycle')}
+                    className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#6E3867] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
+                  >
+                    Limit Cycle (2.0)
+                  </button>
+                  <button
+                    onClick={() => applyPreset(2.2, 'Divergent')}
+                    className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#C83226] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
+                  >
+                    Divergent (2.2)
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => applyPreset(objectiveId === 'quadratic2d-anisotropic' ? 0.05 : 0.25, 'Stable')}
+                    className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#33634B] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
+                  >
+                    Conservative ({objectiveId === 'quadratic2d-anisotropic' ? '0.05' : '0.25'})
+                  </button>
+                  <button
+                    onClick={() => applyPreset(objectiveId === 'quadratic2d-anisotropic' ? 0.15 : 1.5, 'Oscillate')}
+                    className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#E28C05] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
+                  >
+                    Cross-Wall ({objectiveId === 'quadratic2d-anisotropic' ? '0.15' : '1.50'})
+                  </button>
+                  <button
+                    onClick={() => applyPreset(objectiveId === 'quadratic2d-anisotropic' ? 0.20 : 2.0, 'Critical')}
+                    className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#6E3867] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
+                  >
+                    Critical Edge ({objectiveId === 'quadratic2d-anisotropic' ? '0.20' : '2.00'})
+                  </button>
+                  <button
+                    onClick={() => applyPreset(objectiveId === 'quadratic2d-anisotropic' ? 0.24 : 2.2, 'Divergent')}
+                    className="px-2 py-0.5 bg-[#FAF7F0] hover:bg-[#C83226] hover:text-[#FAF7F0] border border-[#1A1715] text-[10px] font-bold"
+                  >
+                    Divergent ({objectiveId === 'quadratic2d-anisotropic' ? '0.24' : '2.20'})
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -735,48 +814,116 @@ export const GradientDescentWorkbench: React.FC = () => {
                   </defs>
                   <rect width={svgWidth} height={420} fill="url(#grid2D)" />
 
-                  {/* Contour Ellipses */}
-                  {contourLevels.map((lvl) => {
-                    const isAniso = (isStudioMode ? compState.objective.id : objectiveId) === 'quadratic2d-anisotropic';
-                    const rxVal = Math.sqrt(2 * lvl);
-                    const ryVal = isAniso ? Math.sqrt(lvl / 5.0) : Math.sqrt(2 * lvl);
+                  {/* Landscape Contours & Equipotentials */}
+                  {activeObj.id === 'rosenbrock2d' ? (
+                    <g key="rosenbrock-manifold">
+                      {/* Parabolic Valley Bottom Curve: theta2 = theta1^2 */}
+                      <path
+                        d={Array.from({ length: 50 }).map((_, i) => {
+                          const t1 = -1.6 + (i / 49) * 3.2;
+                          const t2 = t1 * t1;
+                          return `${i === 0 ? 'M' : 'L'} ${toSvgX2D(t1).toFixed(1)} ${toSvgY2D(t2).toFixed(1)}`;
+                        }).join(' ')}
+                        fill="none"
+                        stroke="#E28C05"
+                        strokeWidth="2.5"
+                        strokeDasharray="4,3"
+                        opacity={0.8}
+                      />
+                      {[1.0, 4.0, 10.0, 25.0].map((c) => {
+                        const topPts = Array.from({ length: 30 }).map((_, i) => {
+                          const t1 = -1.5 + (i / 29) * 3.0;
+                          const t2 = t1 * t1 + Math.sqrt(c / 10.0);
+                          return `${i === 0 ? 'M' : 'L'} ${toSvgX2D(t1).toFixed(1)} ${toSvgY2D(t2).toFixed(1)}`;
+                        }).join(' ');
+                        const botPts = Array.from({ length: 30 }).map((_, i) => {
+                          const t1 = -1.5 + (i / 29) * 3.0;
+                          const t2 = Math.max(-0.8, t1 * t1 - Math.sqrt(c / 10.0));
+                          return `${i === 0 ? 'M' : 'L'} ${toSvgX2D(t1).toFixed(1)} ${toSvgY2D(t2).toFixed(1)}`;
+                        }).join(' ');
+                        return (
+                          <g key={`rosen-contour-${c}`}>
+                            <path d={topPts} fill="none" stroke="#C83226" strokeWidth="1" strokeDasharray="3,3" opacity={0.35} />
+                            <path d={botPts} fill="none" stroke="#C83226" strokeWidth="1" strokeDasharray="3,3" opacity={0.35} />
+                          </g>
+                        );
+                      })}
+                      <text x={toSvgX2D(0.0)} y={toSvgY2D(0.0) + 16} fontSize="9" fill="#E28C05" fontWeight="bold" textAnchor="middle">
+                        Parabolic Valley Spine: θ₂ = θ₁²
+                      </text>
+                    </g>
+                  ) : activeObj.id === 'saddle2d' ? (
+                    <g key="saddle-manifold">
+                      <line x1={toSvgX2D(-2.5)} y1={toSvgY2D(-2.5)} x2={toSvgX2D(2.5)} y2={toSvgY2D(2.5)} stroke="#5C544B" strokeWidth="1.5" strokeDasharray="4,3" opacity={0.5} />
+                      <line x1={toSvgX2D(-2.5)} y1={toSvgY2D(2.5)} x2={toSvgX2D(2.5)} y2={toSvgY2D(-2.5)} stroke="#5C544B" strokeWidth="1.5" strokeDasharray="4,3" opacity={0.5} />
+                      <text x={toSvgX2D(0.0)} y={toSvgY2D(1.8)} fontSize="9" fill="#6E3867" fontWeight="bold" textAnchor="middle">
+                        Hyperbolic Saddle: Negative Curvature Crest along θ₂
+                      </text>
+                    </g>
+                  ) : activeObj.id === 'rastrigin2d' ? (
+                    <g key="rastrigin-manifold">
+                      {[-2, -1, 0, 1, 2].flatMap((i) =>
+                        [-2, -1, 0, 1, 2].map((j) => (
+                          <circle
+                            key={`rast-min-${i}-${j}`}
+                            cx={toSvgX2D(i)}
+                            cy={toSvgY2D(j)}
+                            r={i === 0 && j === 0 ? 6 : 3}
+                            fill={i === 0 && j === 0 ? '#1848B8' : '#FAF7F0'}
+                            stroke="#1A1715"
+                            strokeWidth="1"
+                            opacity={0.6}
+                          />
+                        ))
+                      )}
+                      <text x={toSvgX2D(0.0)} y={toSvgY2D(2.2)} fontSize="9" fill="#33634B" fontWeight="bold" textAnchor="middle">
+                        Multimodal Grid: Global Minimum at (0, 0)
+                      </text>
+                    </g>
+                  ) : (
+                    // Quadratic Contours
+                    contourLevels.map((lvl) => {
+                      const isAniso = activeObj.id === 'quadratic2d-anisotropic';
+                      const rxVal = Math.sqrt(2 * lvl);
+                      const ryVal = isAniso ? Math.sqrt(lvl / 5.0) : Math.sqrt(2 * lvl);
 
-                    const rxPx = (rxVal / (maxT1 - minT1)) * 500;
-                    const ryPx = (ryVal / (maxT2 - minT2)) * 340;
+                      const rxPx = (rxVal / (maxT1 - minT1)) * 500;
+                      const ryPx = (ryVal / (maxT2 - minT2)) * 340;
 
-                    return (
-                      <g key={`contour-${lvl}`}>
-                        <ellipse
-                          cx={toSvgX2D(3.0)}
-                          cy={toSvgY2D(2.0)}
-                          rx={rxPx}
-                          ry={ryPx}
-                          fill="none"
-                          stroke={isAniso ? '#C83226' : '#1848B8'}
-                          strokeWidth="1"
-                          strokeDasharray={lvl >= 10 ? '3,3' : undefined}
-                          opacity={0.35}
-                        />
-                        <text
-                          x={toSvgX2D(3.0) + rxPx + 4}
-                          y={toSvgY2D(2.0)}
-                          fontSize="8"
-                          fill="#5C544B"
-                          opacity={0.8}
-                        >
-                          J={lvl}
-                        </text>
-                      </g>
-                    );
-                  })}
+                      return (
+                        <g key={`contour-${lvl}`}>
+                          <ellipse
+                            cx={toSvgX2D(activeObj.globalOptimum[0])}
+                            cy={toSvgY2D(activeObj.globalOptimum[1])}
+                            rx={rxPx}
+                            ry={ryPx}
+                            fill="none"
+                            stroke={isAniso ? '#C83226' : '#1848B8'}
+                            strokeWidth="1"
+                            strokeDasharray={lvl >= 10 ? '3,3' : undefined}
+                            opacity={0.35}
+                          />
+                          <text
+                            x={toSvgX2D(activeObj.globalOptimum[0]) + rxPx + 4}
+                            y={toSvgY2D(activeObj.globalOptimum[1])}
+                            fontSize="8"
+                            fill="#5C544B"
+                            opacity={0.8}
+                          >
+                            J={lvl}
+                          </text>
+                        </g>
+                      );
+                    })
+                  )}
 
-                  {/* Optimum Marker θ* = (3, 2) */}
-                  <g transform={`translate(${toSvgX2D(3.0)}, ${toSvgY2D(2.0)})`}>
+                  {/* Optimum Marker θ* */}
+                  <g transform={`translate(${toSvgX2D(activeObj.globalOptimum[0])}, ${toSvgY2D(activeObj.globalOptimum[1])})`}>
                     <line x1="-8" y1="0" x2="8" y2="0" stroke="#1848B8" strokeWidth="2" />
                     <line x1="0" y1="-8" x2="0" y2="8" stroke="#1848B8" strokeWidth="2" />
                     <circle r="4" fill="none" stroke="#1848B8" strokeWidth="1.5" />
                     <text x="10" y="4" fontSize="10" fontWeight="bold" fill="#1848B8">
-                      θ* = (3, 2)
+                      θ* = ({activeObj.globalOptimum[0]}, {activeObj.globalOptimum[1]})
                     </text>
                   </g>
 
@@ -1177,6 +1324,34 @@ export const GradientDescentWorkbench: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Algorithmic Cost & Reality Check (Fairness Section) */}
+              <div className="p-3 bg-[#E8E1D3]/70 border border-[#1A1715] space-y-2 text-xs">
+                <div className="flex items-center gap-1.5 font-black text-[#1A1715] text-[11px] uppercase">
+                  <Info className="w-3.5 h-3.5 text-[#1848B8]" />
+                  ALGORITHMIC COST & NO-FREE-LUNCH PRINCIPLE
+                </div>
+                <div className="grid grid-cols-3 gap-2 font-mono text-[10px] text-center border-t border-[#1A1715]/20 pt-1.5">
+                  <div className="bg-[#FAF7F0] p-1.5 border border-[#1848B8]">
+                    <div className="font-black text-[#1848B8]">VANILLA GD</div>
+                    <div className="text-[#5C544B]">Compute: 1× Flops</div>
+                    <div className="text-[#5C544B]">Aux Memory: 0</div>
+                  </div>
+                  <div className="bg-[#FAF7F0] p-1.5 border border-[#E28C05]">
+                    <div className="font-black text-[#E28C05]">MOMENTUM</div>
+                    <div className="text-[#5C544B]">Compute: 1.5× Flops</div>
+                    <div className="text-[#5C544B]">Aux Memory: D (v)</div>
+                  </div>
+                  <div className="bg-[#FAF7F0] p-1.5 border border-[#33634B]">
+                    <div className="font-black text-[#33634B]">ADAM</div>
+                    <div className="text-[#5C544B]">Compute: 4× Flops</div>
+                    <div className="text-[#5C544B]">Aux Memory: 2D (m, v)</div>
+                  </div>
+                </div>
+                <p className="text-[10px] text-[#5C544B] leading-tight pt-1">
+                  <strong>Pedagogical Note:</strong> Adam is not universally better. While Adam normalizes steep coordinate disparities, tuned Polyak Momentum often tracks narrow valleys faster without second-moment damping, and Vanilla GD has zero auxiliary memory overhead.
+                </p>
+              </div>
             </div>
           ) : (
             // SINGLE MODE: 5 SYNCHRONIZED REPRESENTATIONS
@@ -1309,10 +1484,10 @@ export const GradientDescentWorkbench: React.FC = () => {
                   {selectedOptimizer === 'momentum' ? (
                     <>
                       <div className="text-[#FAF7F0] mt-1">
-                        v = {simState.config.momentumGamma ?? 0.9} * v + {learningRate.toFixed(3)} * grad
+                        v = {simState.config.momentumGamma ?? 0.9} * v + grad  # Polyak Heavy-Ball
                       </div>
                       <div className="bg-[#E28C05]/30 px-1 py-0.5 border-l-2 border-[#E28C05] text-[#FAF7F0] font-bold mt-1">
-                        theta = theta - v  <span className="text-[#FAF7F0]/40"># =&gt; [{simState.theta.map((v) => v.toFixed(2)).join(', ')}]</span>
+                        theta = theta - {learningRate.toFixed(3)} * v  <span className="text-[#FAF7F0]/40"># =&gt; [{simState.theta.map((v) => v.toFixed(2)).join(', ')}]</span>
                       </div>
                     </>
                   ) : selectedOptimizer === 'adam' ? (
@@ -1321,7 +1496,7 @@ export const GradientDescentWorkbench: React.FC = () => {
                         m = 0.9 * m + 0.1 * grad; v = 0.999 * v + 0.001 * (grad**2)
                       </div>
                       <div className="bg-[#33634B]/30 px-1 py-0.5 border-l-2 border-[#33634B] text-[#FAF7F0] font-bold mt-1">
-                        theta = theta - alpha * (m_hat / (np.sqrt(v_hat) + 1e-8))
+                        theta = theta - {learningRate.toFixed(3)} * (m_hat / (np.sqrt(v_hat) + 1e-8))
                       </div>
                     </>
                   ) : (

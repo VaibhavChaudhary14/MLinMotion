@@ -2,12 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Menu, X, ArrowRight, Search, Bookmark, FileText } from 'lucide-react';
 import { CommandPalette } from '@/components/search/CommandPalette';
 import { NotesDrawer, getSavedNotes } from '@/components/notes/NotesDrawer';
 import { getBookmarks } from '@/lib/adaptive/bookmarks';
 
 export const Header: React.FC = () => {
+  const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
@@ -43,19 +45,27 @@ export const Header: React.FC = () => {
   }, []);
 
   const navLinks = [
-    { href: '/concepts', label: 'Concept Cards' },
     { href: '/lessons', label: 'Curriculum' },
-    { href: '/lab', label: 'Algorithm Lab' },
+    { href: '/concepts', label: 'Concept Cards' },
+    { href: '/cinema', label: 'Cinema' },
+    { href: '/lab', label: 'Lab' },
     { href: '/compare', label: 'Comparison' },
+    { href: '/datalab', label: 'Data Lab' },
     { href: '/quiz', label: 'Quiz' },
-    { href: '/about', label: 'About' },
     { href: '/dashboard', label: 'Dashboard' },
+    { href: '/about', label: 'About' },
   ];
+
+  const isLinkActive = (href: string) => {
+    if (!pathname) return false;
+    if (href === '/') return pathname === '/';
+    return pathname === href || pathname.startsWith(href + '/');
+  };
 
   return (
     <>
       <header className="sticky top-0 z-40 bg-[#FAF7F0] border-b-[1.5px] border-[#1A1715] shadow-[0px_2px_0px_#1A1715]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-3 sm:gap-4">
           {/* Left: Typographic Wordmark with Geometric Dial Mark */}
           <Link href="/" className="flex items-center gap-2.5 group shrink-0">
             <div className="w-6 h-6 bg-[#1A1715] flex items-center justify-center border border-[#1A1715] shadow-[1px_1px_0px_#C83226]">
@@ -70,21 +80,28 @@ export const Header: React.FC = () => {
             </span>
           </Link>
 
-          {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-5 font-mono text-xs font-semibold text-[#5C544B]">
-            {navLinks.map((link) => (
-              <Link
-                key={link.label}
-                href={link.href}
-                className="hover:text-[#1A1715] hover:underline underline-offset-4 decoration-[#C83226] decoration-[1.5px] transition-colors"
-              >
-                {link.label}
-              </Link>
-            ))}
+          {/* Desktop Navigation Tabs: Ordered Sequence with Tactile Bauhaus States */}
+          <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5 font-mono text-[11px] xl:text-xs">
+            {navLinks.map((link) => {
+              const active = isLinkActive(link.href);
+              return (
+                <Link
+                  key={link.label}
+                  href={link.href}
+                  className={`px-2 xl:px-2.5 py-1 font-bold uppercase tracking-tight transition-all border-[1.5px] ${
+                    active
+                      ? 'bg-[#1A1715] text-[#FAF7F0] border-[#1A1715] shadow-[1.5px_1.5px_0px_#C83226]'
+                      : 'bg-transparent text-[#5C544B] border-transparent hover:text-[#1A1715] hover:bg-[#E8E1D3] hover:border-[#1A1715]'
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
           </nav>
 
-          {/* Right Action Tools: Search, Notes Drawer, Primary CTA */}
-          <div className="flex items-center gap-2 sm:gap-2.5">
+          {/* Right Action Tools: Search, Notes Drawer */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
             {/* Cmd+K Search trigger pill */}
             <button
               onClick={() => setSearchOpen(true)}
@@ -113,15 +130,6 @@ export const Header: React.FC = () => {
               )}
             </button>
 
-            {/* Primary Action Button */}
-            <Link
-              href="/cinema"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 bg-[#1848B8] text-[#FAF7F0] font-mono text-xs font-bold uppercase tracking-wider border-[1.5px] border-[#1A1715] shadow-[2px_2px_0px_#1A1715] hover:bg-[#133aa0] active:translate-x-[1.5px] active:translate-y-[1.5px] active:shadow-none transition-all"
-            >
-              <span>CINEMA</span>
-              <ArrowRight className="w-3 h-3" />
-            </Link>
-
             {/* Mobile Menu Toggle Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -136,17 +144,25 @@ export const Header: React.FC = () => {
         {/* Responsive Mobile Drawer */}
         {mobileMenuOpen && (
           <div className="lg:hidden border-t-[1.5px] border-[#1A1715] bg-[#FAF7F0] px-4 py-4 space-y-3 font-mono text-xs">
-            <div className="flex flex-col space-y-2">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.label}
-                  href={link.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="py-1 text-[#5C544B] hover:text-[#1A1715] font-semibold border-b border-[#D8CFC0]"
-                >
-                  {link.label}
-                </Link>
-              ))}
+            <div className="flex flex-col space-y-1">
+              {navLinks.map((link) => {
+                const active = isLinkActive(link.href);
+                return (
+                  <Link
+                    key={link.label}
+                    href={link.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`px-3 py-2 font-bold uppercase transition-all flex items-center justify-between border-[1.5px] ${
+                      active
+                        ? 'bg-[#1A1715] text-[#FAF7F0] border-[#1A1715] shadow-[2px_2px_0px_#C83226]'
+                        : 'bg-transparent text-[#5C544B] border-transparent hover:border-[#1A1715] hover:bg-[#E8E1D3] hover:text-[#1A1715]'
+                    }`}
+                  >
+                    <span>{link.label}</span>
+                    {active && <span className="w-1.5 h-1.5 bg-[#C83226]" />}
+                  </Link>
+                );
+              })}
             </div>
 
             <div className="pt-2 flex gap-2">
@@ -155,7 +171,7 @@ export const Header: React.FC = () => {
                   setMobileMenuOpen(false);
                   setSearchOpen(true);
                 }}
-                className="flex-1 py-2 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] font-bold text-center"
+                className="flex-1 py-2 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] font-bold text-center hover:bg-[#E8E1D3] shadow-[1.5px_1.5px_0px_#1A1715] active:translate-x-[1px] active:translate-y-[1px] transition-all"
               >
                 SEARCH (⌘K)
               </button>
@@ -164,19 +180,11 @@ export const Header: React.FC = () => {
                   setMobileMenuOpen(false);
                   setNotesOpen(true);
                 }}
-                className="flex-1 py-2 bg-[#E8E1D3] border-[1.5px] border-[#1A1715] font-bold text-center"
+                className="flex-1 py-2 bg-[#E8E1D3] border-[1.5px] border-[#1A1715] font-bold text-center hover:bg-[#FAF7F0] shadow-[1.5px_1.5px_0px_#1A1715] active:translate-x-[1px] active:translate-y-[1px] transition-all"
               >
                 NOTES & BOOKMARKS
               </button>
             </div>
-
-            <Link
-              href="/cinema"
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full flex items-center justify-center gap-1.5 py-2 bg-[#1848B8] text-[#FAF7F0] font-bold uppercase text-xs border-[1.5px] border-[#1A1715] shadow-[2px_2px_0px_#1A1715]"
-            >
-              <span>ALGORITHM CINEMA →</span>
-            </Link>
           </div>
         )}
       </header>
