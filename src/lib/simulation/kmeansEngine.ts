@@ -17,7 +17,11 @@ export interface KMeansConfig {
   initMethod: 'kmeans++' | 'random' | 'manual';
   manualCentroids?: Array<{ x: number; y: number }>;
   seed: number;
+  /** Primary scale-invariant convergence threshold: relative centroid shift / dataset coordinate span (default: 1e-4) */
+  relativeTolerance?: number;
+  /** Numerical precision safeguard against floating-point underflow (default: 1e-7) */
   convergenceEpsilon?: number;
+  /** Safety iteration ceiling to prevent unbounded execution (default: 25) */
   maxIterations?: number;
 }
 
@@ -273,27 +277,40 @@ export class KMeansSimulationEngine
 
     const updatedInertia = calculateInertia(pointsWithNewDistances, updatedCentroids);
 
-    // Compute coordinate span for scale-invariant normalized convergence
+    // Primary scale-invariant convergence criterion:
+    // 1. Compute the spatial coordinate span (bounding diagonal) of the data manifold.
     const xs = points.map((p) => p.x);
     const ys = points.map((p) => p.y);
     const minX = Math.min(...xs), maxX = Math.max(...xs);
     const minY = Math.min(...ys), maxY = Math.max(...ys);
-    const coordSpan = Math.max(1, Math.hypot(maxX - minX, maxY - minY));
-    const relativeShift = maxShift / coordSpan;
+    const rawSpan = Math.hypot(maxX - minX, maxY - minY);
 
-    const epsilon = config.convergenceEpsilon ?? 0.005;
+    // 2. Explicitly handle degenerate zero-span datasets (all points coincident or single-point)
+    const isZeroSpan = rawSpan <= Number.EPSILON;
+    const coordSpan = isZeroSpan ? 1.0 : rawSpan;
+    const relativeShift = isZeroSpan ? 0 : maxShift / coordSpan;
+
+    // 3. Relative displacement tolerance is the PRIMARY convergence criterion (default: 1e-4)
+    const relTol = config.relativeTolerance ?? 1e-4;
+    // 4. Absolute precision floor safeguard against floating-point underflow (default: 1e-7)
+    const absSafeguard = config.convergenceEpsilon ?? 1e-7;
     const maxIter = config.maxIterations ?? 25;
 
-    // Scale-invariant convergence: absolute displacement < epsilon OR relative shift < 1e-4
-    const isDisplacementConverged = maxShift < epsilon || relativeShift < 1e-4;
+    // Convergence requires:
+    // (A) Zero reassignments AND relative shift below tolerance (or underflow safeguard), OR
+    // (B) Degenerate zero-span data where centroids have collapsed to data, OR
+    // (C) Maximum safety iteration limit reached.
+    const isShiftConverged = isZeroSpan || relativeShift < relTol || maxShift < absSafeguard;
     const hasConverged =
-      (isDisplacementConverged && state.reassignments === 0) || iteration >= maxIter;
+      (isShiftConverged && state.reassignments === 0) || iteration >= maxIter;
 
     const nextPhase: KMeansPhase = hasConverged ? 'converged' : 'update';
     const convergenceReason = hasConverged
       ? iteration >= maxIter
-        ? `Maximum iteration threshold (${maxIter}) reached.`
-        : `Centroid displacement (Δ = ${maxShift.toFixed(4)}px, relative shift = ${(relativeShift * 100).toFixed(4)}%) settled below convergence tolerance.`
+        ? `Safety iteration ceiling (${maxIter}) reached.`
+        : isZeroSpan
+        ? `Degenerate zero-span dataset detected; centroid coordinates settled.`
+        : `Relative centroid shift (${(relativeShift * 100).toFixed(4)}% of span) settled below scale-invariant tolerance (τ_rel = ${(relTol * 100).toFixed(3)}%). Numerical Δ = ${maxShift.toFixed(5)}px.`
       : undefined;
 
     const nextSnapshot: KMeansSnapshot = {

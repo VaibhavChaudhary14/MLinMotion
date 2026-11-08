@@ -242,7 +242,7 @@ export const KMeansSimulationWorkbench: React.FC = () => {
   const selectedPoint =
     simState.points.find((p) => p.id === selectedPointId) || simState.points[0];
 
-  // Discrete Voronoi Catchment Field (Exact Voronoi Tesselation for arbitrary K)
+  // Rasterized discrete approximation of the Voronoi catchment field (nearest-centroid grid sampling)
   const voronoiTiles = useMemo(() => {
     if (simState.centroids.length < 2) return [];
     const tiles: Array<{ x: number; y: number; color: string }> = [];
@@ -491,7 +491,7 @@ export const KMeansSimulationWorkbench: React.FC = () => {
                 </defs>
                 <rect width="600" height="450" fill="url(#gridPattern)" />
 
-                {/* True Bounded Voronoi Catchment Shading for Arbitrary K */}
+                {/* Rasterized Voronoi Catchment Approximation (6% opacity grid tiles) */}
                 <g opacity="0.06">
                   {voronoiTiles.map((t, idx) => (
                     <rect key={`voronoi-${idx}`} x={t.x} y={t.y} width={20} height={20} fill={t.color} />

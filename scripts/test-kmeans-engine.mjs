@@ -223,3 +223,63 @@ test('KMeans Engine: Deep Reversibility State Audit (All Fields Restored)', () =
   assert.equal(state.historyStack.length, 1);
 });
 
+test('KMeans Engine: Scale Invariance Across Coordinate Rescaling (10x Scaling Invariance)', () => {
+  const engine = new KMeansSimulationEngine();
+  const dataset = KMEANS_FAILURE_SCENARIOS.separated.generate().points;
+
+  // Scale dataset by 10x
+  const scaledDataset = dataset.map((p) => ({
+    ...p,
+    x: p.x * 10,
+    y: p.y * 10,
+  }));
+
+  let stateNormal = engine.initialize({ k: 3, initMethod: 'random', seed: 42, relativeTolerance: 1e-4 }, dataset, 42);
+  let stateScaled = engine.initialize({ k: 3, initMethod: 'random', seed: 42, relativeTolerance: 1e-4 }, scaledDataset, 42);
+
+  let iterNormal = 0;
+  while (!stateNormal.isConverged && iterNormal < 30) {
+    stateNormal = engine.step(stateNormal);
+    iterNormal++;
+  }
+
+  let iterScaled = 0;
+  while (!stateScaled.isConverged && iterScaled < 30) {
+    stateScaled = engine.step(stateScaled);
+    iterScaled++;
+  }
+
+  // With scale-invariant relative tolerance, the iteration count to convergence matches exactly
+  assert.equal(iterNormal, iterScaled, 'Convergence iteration count must be invariant under linear coordinate rescaling');
+  assert.ok(stateNormal.isConverged);
+  assert.ok(stateScaled.isConverged);
+});
+
+test('KMeans Engine: Zero-Span Dataset Explicit Handling (Collinear/Coincident Points)', () => {
+  const engine = new KMeansSimulationEngine();
+  // 5 completely coincident points at (100, 100)
+  const zeroSpanPoints = [
+    { id: 'p1', x: 100, y: 100 },
+    { id: 'p2', x: 100, y: 100 },
+    { id: 'p3', x: 100, y: 100 },
+    { id: 'p4', x: 100, y: 100 },
+    { id: 'p5', x: 100, y: 100 },
+  ];
+
+  let state = engine.initialize({ k: 2, initMethod: 'random', seed: 1 }, zeroSpanPoints, 1);
+  let steps = 0;
+  while (!state.isConverged && steps < 10) {
+    state = engine.step(state);
+    steps++;
+  }
+
+  // Must not have NaN, Infinity, or crash
+  for (const c of state.centroids) {
+    assert.ok(!Number.isNaN(c.x), 'Centroid X must not be NaN');
+    assert.ok(!Number.isNaN(c.y), 'Centroid Y must not be NaN');
+    assert.ok(Number.isFinite(c.x), 'Centroid X must be finite');
+  }
+  assert.ok(state.isConverged, 'Zero-span dataset must cleanly trigger convergence');
+});
+
+
