@@ -63,7 +63,7 @@ To maintain rigorous transparency, the distinction between client-side learning 
 | Scope | Storage Mechanism | Remote Transmission | Contents |
 | :--- | :--- | :--- | :--- |
 | **Personal Learning Ledger** | Browser `localStorage` (`ml_in_motion_learning_profile_v1`) | **Zero (0%)** — Never transmitted | Prediction attempts, accuracy scores, challenge completions, parameter choices, bypass counts |
-| **Platform Telemetry** | Edge CDN / Vercel Web Analytics & Speed Insights | Anonymous HTTP beacons | Page views, aggregate geography, Core Web Vitals (LCP, FID, CLS) |
+| **Platform Telemetry** | Edge CDN / Vercel Web Analytics & Speed Insights | Anonymous HTTP beacons | Page views, aggregate geography, Core Web Vitals (LCP, INP, CLS) |
 
 - **UI Badge Updated:** Changed from generic "100% LOCAL-FIRST (ZERO TRACKING)" to `100% LOCAL LEDGER // ZERO CLOUD PROFILE`.
 - **Honest Description:** Replaced inaccurate "Encrypted in browser storage" claims with explicit notice: `Stored strictly in browser localStorage (N attempts, M bypasses). Platform telemetry handled separately via Vercel Analytics.`

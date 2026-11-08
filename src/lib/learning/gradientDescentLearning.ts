@@ -574,7 +574,7 @@ export const GD_CHALLENGES: ChallengeDefinition<
     explanation: {
       phenomenon: 'Non-Convex Basin of Attraction Partitioning & Initialization Sensitivity',
       mathematicalProof: 'The Rastrigin function J(θ) = 20 + ∑(θ_i² - 10 cos(2πθ_i)) superimposes high-frequency cosine undulations on a parabolic bowl. Local search methods follow the negative gradient within the basin of attraction dictated strictly by the initial condition θ⁽⁰⁾ and step sequence. The observed residual loss (J > 0.8) is an empirical characteristic of the specific [2.5, 2.5] initialization basin rather than an intrinsic universal constant of the Rastrigin function.',
-      practicalLesson: 'First-order gradient descent is trajectory- and initialization-dependent. It can only guarantee convergence to a stationary point within the basin into which it was initialized. Finding global minima in multimodal problems requires momentum, stochasticity, or multiple random restarts.',
+      practicalLesson: 'First-order gradient descent is trajectory- and initialization-dependent. It can only guarantee convergence to a stationary point within the basin into which it was initialized. While momentum, stochasticity, and multiple random restarts can improve exploration across local basins, none guarantees finding a global minimum on an arbitrary non-convex landscape.',
     },
   },
 ];

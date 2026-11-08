@@ -159,10 +159,55 @@ export interface ChallengeRecord {
   diagnosticSnapshot?: Record<string, any>;
 }
 
+export type ConceptMasteryState =
+  | 'NOT_STARTED'
+  | 'IN_PROGRESS'
+  | 'DEVELOPING'
+  | 'NEEDS_REVISION'
+  | 'MASTERED';
+
+export interface RevisionScheduleRecord {
+  conceptId: string;
+  nextRevisionDate: number;
+  intervalDays: number;
+  repetitionCount: number;
+  lastReviewedAt: number;
+  reason: string;
+}
+
 export interface LocalLearningProfile {
   version: number;
   lastActive: number;
+  activePathId?: string;
   predictions: PredictionAttemptRecord[];
   challenges: Record<string, ChallengeRecord>;
+  practiceAttempts: PracticeAttemptRecord[];
+  conceptMastery: Record<string, ConceptMasteryRecord>;
+  revisionSchedule: Record<string, RevisionScheduleRecord>;
   bypassesCount?: number;
+}
+
+export interface PracticeAttemptRecord {
+  id: string;
+  questionId: string;
+  conceptId: string;
+  userAnswer: unknown;
+  isCorrect: boolean;
+  score: number;
+  timestamp: number;
+}
+
+export interface ConceptMasteryRecord {
+  conceptId: string;
+  state: ConceptMasteryState;
+  score: number; // 0 to 100
+  evaluatedAt: number;
+  evidence: {
+    predictionCount: number;
+    predictionAccuracy: number;
+    completedChallenges: string[];
+    practiceCount: number;
+    practiceAccuracy: number;
+    prerequisitesMet: boolean;
+  };
 }
