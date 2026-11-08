@@ -272,6 +272,17 @@ export const KMeansSimulationWorkbench: React.FC = () => {
       <div className="p-4 sm:p-6 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] shadow-[4px_4px_0px_#1A1715]">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#D8CFC0] pb-4">
           <div>
+            <div className="flex items-center gap-2 mb-2 text-xs">
+              <span className="px-2.5 py-1 bg-[#1848B8] text-[#FAF7F0] font-black border border-[#1A1715] shadow-[2px_2px_0px_#1A1715]">
+                FLAGSHIP 01: K-MEANS
+              </span>
+              <Link
+                href="/cinema/gradient-descent"
+                className="px-2.5 py-1 bg-[#E8E1D3] text-[#5C544B] border border-[#1A1715] shadow-[1px_1px_0px_#1A1715] hover:bg-[#FAF7F0] hover:text-[#1A1715] transition-colors"
+              >
+                FLAGSHIP 02: GRADIENT DESCENT →
+              </Link>
+            </div>
             <div className="flex items-center gap-2 mb-1.5">
               <span className="w-2.5 h-2.5 bg-[#1848B8] border border-[#1A1715]" />
               <span className="text-[10px] font-bold uppercase tracking-widest text-[#1848B8]">
