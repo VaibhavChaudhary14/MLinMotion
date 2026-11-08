@@ -9,6 +9,8 @@ export type GradientDescentObjectiveId =
   | 'quadratic2d-isotropic'
   | 'quadratic2d-anisotropic';
 
+export type OptimizerType = 'vanilla' | 'momentum' | 'adam';
+
 export type ConvergenceRegime =
   | 'monotonic'
   | 'deadbeat'
@@ -16,6 +18,7 @@ export type ConvergenceRegime =
   | 'limit-cycle'
   | 'divergent'
   | 'stationary'
+  | 'zero-step'
   | 'running';
 
 export interface GradientDescentObjective {
@@ -45,7 +48,12 @@ export interface OptimizerState {
 
 export interface GradientDescentConfig {
   objectiveId: GradientDescentObjectiveId;
+  optimizer?: OptimizerType; // default: 'vanilla'
   learningRate: number; // alpha
+  momentumGamma?: number; // default: 0.9 (for Polyak momentum)
+  adamBeta1?: number; // default: 0.9 (for Adam)
+  adamBeta2?: number; // default: 0.999 (for Adam)
+  adamEpsilon?: number; // default: 1e-8 (for Adam)
   initialTheta?: number[];
   maxIterations?: number; // default: 50
   gradientTolerance?: number; // default: 1e-4
@@ -68,6 +76,7 @@ export interface GradientDescentSnapshot {
   isDiverged: boolean;
   isLimitCycle: boolean;
   isStationary: boolean;
+  isMaxIterationsReached?: boolean;
   stopReason?: string;
   optimizerState: OptimizerState;
 }
@@ -236,7 +245,7 @@ export function classifyRegime(
 ): ConvergenceRegime {
   const { dimension, eigenvalues, globalOptimum } = objective;
 
-  // Check if stationary at initialization
+  // Check if stationary at initialization (already at global optimum)
   const isStationaryAtStart = initialTheta.every(
     (val, i) => Math.abs(val - globalOptimum[i]) < 1e-9
   );
@@ -244,9 +253,14 @@ export function classifyRegime(
     return 'stationary';
   }
 
+  // Check if alpha is zero (zero step size - not converged)
+  if (alpha === 0) {
+    return 'zero-step';
+  }
+
   if (dimension === 1) {
     // Exact scalar rules for J(theta) = 0.5(theta - 3.5)^2 + 1
-    if (alpha <= 0) return 'running';
+    if (alpha < 0) return 'running';
     if (Math.abs(alpha - 1.0) < 1e-9) return 'deadbeat';
     if (alpha > 0 && alpha < 1.0) return 'monotonic';
     if (alpha > 1.0 && alpha < 2.0) return 'oscillating';
@@ -255,7 +269,7 @@ export function classifyRegime(
   } else {
     // Multidimensional positive-definite rules: stability depends on lambda_max
     const alphaCrit = 2.0 / eigenvalues.lambdaMax;
-    if (alpha <= 0) return 'running';
+    if (alpha < 0) return 'running';
     if (Math.abs(alpha - alphaCrit) < 1e-9) return 'limit-cycle';
     if (alpha > alphaCrit) return 'divergent';
 
@@ -303,8 +317,17 @@ export function createGradientDescentSimulation(
   const initialGradNorm = vectorNorm(initialGrad);
   const regime = classifyRegime(objective, config.learningRate, initialTheta);
 
+  const optimizerType = config.optimizer ?? 'vanilla';
+  const initialOptimizerState: OptimizerState =
+    optimizerType === 'momentum'
+      ? { type: 'momentum', velocity: initialTheta.map(() => 0.0) }
+      : optimizerType === 'adam'
+      ? { type: 'adam', m: initialTheta.map(() => 0.0), v: initialTheta.map(() => 0.0), t: 0 }
+      : { type: 'vanilla' };
+
+  const isAlphaZero = config.learningRate === 0;
   const isStationary = initialGradNorm < (config.gradientTolerance ?? 1e-4);
-  const isConverged = isStationary;
+  const isConverged = isStationary && !isAlphaZero;
 
   const initialSnapshot: GradientDescentSnapshot = {
     stepNumber: 0,
@@ -320,13 +343,23 @@ export function createGradientDescentSimulation(
     isDiverged: false,
     isLimitCycle: false,
     isStationary,
-    stopReason: isStationary ? 'Stationary at global optimum (zero gradient at initialization).' : undefined,
-    optimizerState: { type: 'vanilla' },
+    isMaxIterationsReached: false,
+    stopReason: isStationary
+      ? 'Stationary at global optimum (zero gradient at initialization).'
+      : isAlphaZero
+      ? 'Zero step size (α = 0): parameters remain stationary, but the system has not converged to a minimum.'
+      : undefined,
+    optimizerState: initialOptimizerState,
   };
 
   return {
     ...initialSnapshot,
     config: {
+      optimizer: optimizerType,
+      momentumGamma: 0.9,
+      adamBeta1: 0.9,
+      adamBeta2: 0.999,
+      adamEpsilon: 1e-8,
       maxIterations: 50,
       gradientTolerance: 1e-4,
       lossTolerance: 1e-7,
@@ -344,13 +377,13 @@ export function createGradientDescentSimulation(
 }
 
 /**
- * Executes a single deterministic step of Vanilla Gradient Descent.
+ * Executes a single deterministic step of Gradient Descent (supporting Vanilla, Momentum, and Adam).
  */
 export function stepGradientDescent(
   state: GradientDescentSimulationState
 ): GradientDescentSimulationState {
-  // If already stopped by convergence or divergence, return state unchanged
-  if (state.isConverged || state.isDiverged) {
+  // If already stopped by convergence, divergence, or max iterations reached, return state unchanged
+  if (state.isConverged || state.isDiverged || state.isMaxIterationsReached) {
     return state;
   }
 
@@ -360,6 +393,7 @@ export function stepGradientDescent(
   const maxIter = config.maxIterations ?? 50;
   const divLossThresh = config.divergenceLossThreshold ?? 1e7;
   const divCoordThresh = config.divergenceCoordThreshold ?? 1e5;
+  const optimizerType = config.optimizer ?? 'vanilla';
 
   // 1. Current gradient and loss
   const currentGrad = objective.evaluateGradient(theta);
@@ -381,8 +415,59 @@ export function stepGradientDescent(
     };
   }
 
-  // 3. Compute step displacement: delta = -alpha * grad
-  const displacement = vectorScale(currentGrad, -alpha);
+  // 3. Compute step displacement and updated optimizer state based on optimizerType
+  let displacement: number[] = [];
+  let nextOptimizerState: OptimizerState = { type: optimizerType };
+
+  if (alpha === 0) {
+    displacement = theta.map(() => 0.0);
+    nextOptimizerState = { ...state.optimizerState };
+  } else if (optimizerType === 'vanilla') {
+    displacement = vectorScale(currentGrad, -alpha);
+    nextOptimizerState = { type: 'vanilla' };
+  } else if (optimizerType === 'momentum') {
+    const gamma = config.momentumGamma ?? 0.9;
+    const prevVelocity = state.optimizerState.velocity ?? theta.map(() => 0.0);
+    // Polyak Heavy-Ball update:
+    // v_{t+1} = gamma * v_t + alpha * grad
+    // theta_{t+1} = theta_t - v_{t+1}
+    const nextVelocity = prevVelocity.map((v, i) => gamma * v + alpha * currentGrad[i]);
+    displacement = nextVelocity.map((v) => -v);
+    nextOptimizerState = {
+      type: 'momentum',
+      velocity: nextVelocity,
+    };
+  } else if (optimizerType === 'adam') {
+    const beta1 = config.adamBeta1 ?? 0.9;
+    const beta2 = config.adamBeta2 ?? 0.999;
+    const eps = config.adamEpsilon ?? 1e-8;
+    const prevM = state.optimizerState.m ?? theta.map(() => 0.0);
+    const prevV = state.optimizerState.v ?? theta.map(() => 0.0);
+    const prevT = state.optimizerState.t ?? 0;
+    const nextT = prevT + 1;
+
+    // Adam update:
+    // m_t = beta1 * m_{t-1} + (1 - beta1) * g_t
+    // v_t = beta2 * v_{t-1} + (1 - beta2) * g_t^2
+    const nextM = prevM.map((mVal, i) => beta1 * mVal + (1 - beta1) * currentGrad[i]);
+    const nextV = prevV.map((vVal, i) => beta2 * vVal + (1 - beta2) * (currentGrad[i] ** 2));
+
+    // Bias corrections:
+    const biasCorrection1 = 1 - Math.pow(beta1, nextT);
+    const biasCorrection2 = 1 - Math.pow(beta2, nextT);
+
+    const mHat = nextM.map((mVal) => mVal / biasCorrection1);
+    const vHat = nextV.map((vVal) => vVal / biasCorrection2);
+
+    displacement = mHat.map((mVal, i) => -alpha * (mVal / (Math.sqrt(vHat[i]) + eps)));
+    nextOptimizerState = {
+      type: 'adam',
+      m: nextM,
+      v: nextV,
+      t: nextT,
+    };
+  }
+
   const nextTheta = theta.map((val, i) => val + displacement[i]);
 
   // 4. Validate next parameter coordinates
@@ -404,8 +489,9 @@ export function stepGradientDescent(
       isDiverged: true,
       isLimitCycle: false,
       isStationary: false,
+      isMaxIterationsReached: false,
       stopReason: 'Geometric divergence: parameter coordinates exceeded stability threshold.',
-      optimizerState: { type: 'vanilla' },
+      optimizerState: nextOptimizerState,
     };
     return {
       ...state,
@@ -429,7 +515,9 @@ export function stepGradientDescent(
   const currentDist = vectorNorm(vectorSubtract(nextTheta, objective.globalOptimum));
   const baseRegime = classifyRegime(objective, alpha, state.config.initialTheta || state.pathHistory[0]);
   const isGeometricExpansion =
-    baseRegime === 'divergent' && currentDist > Math.max(5.0, initialDist * 5.0);
+    optimizerType === 'vanilla' &&
+    baseRegime === 'divergent' &&
+    currentDist > Math.max(5.0, initialDist * 5.0);
 
   const isDivergenceDetected =
     !Number.isFinite(nextLoss) ||
@@ -452,10 +540,11 @@ export function stepGradientDescent(
       isDiverged: true,
       isLimitCycle: false,
       isStationary: false,
+      isMaxIterationsReached: false,
       stopReason: isGeometricExpansion
         ? `Geometric divergence: parameter distance expanded exponentially away from minimum (α = ${alpha.toFixed(2)} > α_crit = ${objective.criticalLearningRate.toFixed(2)}).`
         : `Geometric divergence: loss (${nextLoss}) exceeded divergence ceiling.`,
-      optimizerState: { type: 'vanilla' },
+      optimizerState: nextOptimizerState,
     };
     return {
       ...state,
@@ -472,32 +561,39 @@ export function stepGradientDescent(
   const isGradientConverged = nextGradNorm < gradTol;
 
   // Specific detection for the 2-cycle undamped oscillation (limit cycle)
-  // For 1D at alpha = 2, theta flips symmetrically: (theta_{t+1} - 3.5) = -(theta_t - 3.5)
-  // Check if loss remains identical to step 0 and distance to theta_{t-1} matches 2 * distance to minimum
+  // Detected if alpha is at critical limit and error oscillates across dominant eigenvector with constant loss
   const isLimitCycleDetected =
-    (objective.dimension === 1 && Math.abs(alpha - 2.0) < 1e-9 && !isGradientConverged) ||
-    (state.pathHistory.length >= 2 &&
-      Math.abs(nextLoss - state.lossHistory[0]) < 1e-4 &&
-      vectorNorm(vectorSubtract(nextTheta, state.pathHistory[state.pathHistory.length - 2])) < 1e-4 &&
-      vectorNorm(displacement) > 1e-3);
+    alpha > 0 &&
+    optimizerType === 'vanilla' &&
+    ((objective.dimension === 1 && Math.abs(alpha - 2.0) < 1e-9 && !isGradientConverged) ||
+      (Math.abs(alpha - objective.criticalLearningRate) < 1e-9 &&
+        !isGradientConverged &&
+        state.pathHistory.length >= 2 &&
+        Math.abs(nextLoss - state.lossHistory[0]) < 1e-2));
 
   const isMaxIterationsReached = nextIteration >= maxIter;
-  const isConverged = isGradientConverged || (isMaxIterationsReached && !isLimitCycleDetected);
+  const isConverged = isGradientConverged;
 
   let stopReason: string | undefined = undefined;
-  if (isLimitCycleDetected) {
+  if (alpha === 0) {
+    stopReason =
+      'Zero step size (α = 0): parameters remain stationary, but the system has not converged to a minimum.';
+  } else if (isLimitCycleDetected) {
     stopReason = isMaxIterationsReached
       ? `Maximum iteration limit (${maxIter}) reached during persistent undamped limit cycle.`
       : 'Persistent 2-cycle undamped oscillation: conservative limit cycle alternating with constant loss. The system does not converge or diverge.';
   } else if (isGradientConverged) {
     stopReason = `Convergence achieved: gradient norm ||∇J|| = ${nextGradNorm.toExponential(3)} fell below tolerance (${gradTol}).`;
   } else if (isMaxIterationsReached) {
-    stopReason = `Maximum iteration limit (${maxIter}) reached.`;
+    stopReason = `Maximum iteration limit (${maxIter}) reached without satisfying gradient convergence tolerance.`;
   }
 
-  const regime = isLimitCycleDetected
-    ? 'limit-cycle'
-    : classifyRegime(objective, alpha, state.config.initialTheta || state.pathHistory[0]);
+  const regime: ConvergenceRegime =
+    alpha === 0
+      ? 'zero-step'
+      : isLimitCycleDetected
+      ? 'limit-cycle'
+      : classifyRegime(objective, alpha, state.config.initialTheta || state.pathHistory[0]);
 
   const nextSnapshot: GradientDescentSnapshot = {
     stepNumber: stepNumber + 1,
@@ -509,12 +605,13 @@ export function stepGradientDescent(
     gradientNorm: nextGradNorm,
     stepDisplacement: displacement,
     regime,
-    isConverged: isConverged && !isLimitCycleDetected,
+    isConverged,
     isDiverged: false,
     isLimitCycle: isLimitCycleDetected,
-    isStationary: false,
+    isStationary: isGradientConverged,
+    isMaxIterationsReached,
     stopReason,
-    optimizerState: { type: 'vanilla' },
+    optimizerState: nextOptimizerState,
   };
 
   return {
@@ -643,7 +740,25 @@ export function getGradientDescentExplanation(
 
   // 2. Mathematical Description
   let description = '';
-  if (iteration === 0) {
+  if (state.isStationary && iteration === 0) {
+    description = `Parameter initialized identically at global optimum θ* = [${theta.map((v) => v.toFixed(3)).join(', ')}]. Analytical gradient is exactly zero (||∇J|| = 0). The system is in perfect equilibrium and remains stationary regardless of learning rate.`;
+  } else if (alpha === 0) {
+    description = `Learning rate is zero (α = 0). Step displacement Δθ = -0·∇J = 0. Parameters remain stationary, but the system has not converged to a minimum.`;
+  } else if (objective.id === 'quadratic2d-anisotropic') {
+    const r1 = 1 - alpha * 1.0;
+    const r2 = 1 - alpha * 10.0;
+    if (iteration === 0) {
+      description = `Initialized on 2D Anisotropic Valley (κ = 10) at θ = [${theta.map((v) => v.toFixed(3)).join(', ')}]. Modal contraction rates: r₁ = 1 - α = ${r1.toFixed(3)} along the gentle valley floor, and r₂ = 1 - 10α = ${r2.toFixed(3)} along the steep canyon wall. Critical ceiling is α_crit = 0.20.`;
+    } else if (Math.abs(alpha - 0.20) < 1e-9) {
+      description = `At the critical boundary α = 0.20, the steep mode multiplier is r₂ = 1 - 10(0.20) = -1.0, producing persistent undamped cross-valley oscillation. Meanwhile, the gentle mode contracts as r₁ = 1 - 0.20 = 0.80, slowly sliding toward the minimum along θ₁.`;
+    } else if (alpha > 0.20) {
+      description = `Learning rate α = ${alpha.toFixed(3)} exceeds critical limit α_crit = 0.20. The steep mode multiplier |1 - 10α| = ${Math.abs(r2).toFixed(2)} > 1, causing geometric explosion across the canyon walls, even as the shallow direction remains stable.`;
+    } else if (alpha > 0.10) {
+      description = `Along the steep canyon wall (λ₂ = 10), the contraction factor is r₂ = ${r2.toFixed(2)} < 0 (overshooting and oscillating across the valley floor). Along the shallow floor (λ₁ = 1), r₁ = ${r1.toFixed(2)} (slow monotonic progress). The combined path exhibits the classic cross-canyon zig-zag pattern.`;
+    } else {
+      description = `Both modes contract monotonically (r₁ = ${r1.toFixed(2)}, r₂ = ${r2.toFixed(2)}). Step moves steadily down the canyon without crossing walls, but progress along the shallow axis is conservative.`;
+    }
+  } else if (iteration === 0) {
     description = `Initialized parameter at θ = [${theta.map((v) => v.toFixed(3)).join(', ')}] with loss J = ${loss.toFixed(4)}. Analytical gradient is ∇J = [${gradient.map((v) => v.toFixed(3)).join(', ')}]. Learning rate α = ${alpha.toFixed(3)} (critical limit α_crit = ${alphaCrit.toFixed(2)}).`;
   } else if (isLimitCycle) {
     description = `At α = 2.0 (the exact stability boundary), the error multiplier is 1 - α = -1.0. Each step flips parameter coordinates across the optimum with constant amplitude |θ - θ*| and identical loss J(θ) = ${loss.toFixed(4)}. The sequence is a conservative 2-cycle that neither converges nor diverges.`;
@@ -784,4 +899,159 @@ export class GradientDescentSimulationEngine {
       summary: `Gradient descent on ${state.objective.name} with α = ${state.config.learningRate}. Final loss: ${state.loss.toFixed(5)} at iteration ${state.iteration}.`,
     };
   }
+}
+
+// -----------------------------------------------------------------------------
+// 6. MULTI-OPTIMIZER COMPARISON LABORATORY API (Phase 2)
+// -----------------------------------------------------------------------------
+
+export interface OptimizerComparisonConfig {
+  objectiveId: GradientDescentObjectiveId;
+  initialTheta?: number[];
+  learningRate: number; // shared alpha
+  momentumGamma?: number; // default: 0.9
+  adamBeta1?: number; // default: 0.9
+  adamBeta2?: number; // default: 0.999
+  adamEpsilon?: number; // default: 1e-8
+  maxIterations?: number; // default: 50
+  gradientTolerance?: number; // default: 1e-4
+}
+
+export interface OptimizerComparisonSnapshot {
+  stepNumber: number;
+  vanilla: GradientDescentSnapshot;
+  momentum: GradientDescentSnapshot;
+  adam: GradientDescentSnapshot;
+}
+
+export interface OptimizerComparisonState {
+  config: OptimizerComparisonConfig;
+  objective: GradientDescentObjective;
+  stepNumber: number;
+  vanilla: GradientDescentSimulationState;
+  momentum: GradientDescentSimulationState;
+  adam: GradientDescentSimulationState;
+  isAllTerminated: boolean;
+  historyStack: OptimizerComparisonSnapshot[];
+}
+
+export function createOptimizerComparison(
+  config: OptimizerComparisonConfig
+): OptimizerComparisonState {
+  const objective = GRADIENT_DESCENT_OBJECTIVES[config.objectiveId];
+  const initialTheta =
+    config.initialTheta && config.initialTheta.length === objective.dimension
+      ? [...config.initialTheta]
+      : objective.dimension === 1
+      ? [0.5]
+      : objective.id === 'quadratic2d-anisotropic'
+      ? [0.5, 3.8]
+      : [0.0, 5.0];
+
+  const commonParams = {
+    objectiveId: config.objectiveId,
+    initialTheta,
+    learningRate: config.learningRate,
+    maxIterations: config.maxIterations ?? 50,
+    gradientTolerance: config.gradientTolerance ?? 1e-4,
+  };
+
+  const vanilla = createGradientDescentSimulation({
+    ...commonParams,
+    optimizer: 'vanilla',
+  });
+
+  const momentum = createGradientDescentSimulation({
+    ...commonParams,
+    optimizer: 'momentum',
+    momentumGamma: config.momentumGamma ?? 0.9,
+  });
+
+  const adam = createGradientDescentSimulation({
+    ...commonParams,
+    optimizer: 'adam',
+    adamBeta1: config.adamBeta1 ?? 0.9,
+    adamBeta2: config.adamBeta2 ?? 0.999,
+    adamEpsilon: config.adamEpsilon ?? 1e-8,
+  });
+
+  const initialSnapshot: OptimizerComparisonSnapshot = {
+    stepNumber: 0,
+    vanilla: vanilla.historyStack[0],
+    momentum: momentum.historyStack[0],
+    adam: adam.historyStack[0],
+  };
+
+  return {
+    config: { ...config, initialTheta },
+    objective,
+    stepNumber: 0,
+    vanilla,
+    momentum,
+    adam,
+    isAllTerminated: false,
+    historyStack: [initialSnapshot],
+  };
+}
+
+export function stepOptimizerComparison(
+  state: OptimizerComparisonState
+): OptimizerComparisonState {
+  const nextVanilla = stepGradientDescent(state.vanilla);
+  const nextMomentum = stepGradientDescent(state.momentum);
+  const nextAdam = stepGradientDescent(state.adam);
+
+  const nextStepNumber = state.stepNumber + 1;
+  const isAllTerminated =
+    (nextVanilla.isConverged || nextVanilla.isDiverged) &&
+    (nextMomentum.isConverged || nextMomentum.isDiverged) &&
+    (nextAdam.isConverged || nextAdam.isDiverged);
+
+  const nextSnapshot: OptimizerComparisonSnapshot = {
+    stepNumber: nextStepNumber,
+    vanilla: nextVanilla.historyStack[nextVanilla.historyStack.length - 1],
+    momentum: nextMomentum.historyStack[nextMomentum.historyStack.length - 1],
+    adam: nextAdam.historyStack[nextAdam.historyStack.length - 1],
+  };
+
+  return {
+    ...state,
+    stepNumber: nextStepNumber,
+    vanilla: nextVanilla,
+    momentum: nextMomentum,
+    adam: nextAdam,
+    isAllTerminated,
+    historyStack: [...state.historyStack, nextSnapshot],
+  };
+}
+
+export function stepBackOptimizerComparison(
+  state: OptimizerComparisonState
+): OptimizerComparisonState {
+  if (state.historyStack.length <= 1) {
+    return state;
+  }
+
+  const nextVanilla = stepBackGradientDescent(state.vanilla);
+  const nextMomentum = stepBackGradientDescent(state.momentum);
+  const nextAdam = stepBackGradientDescent(state.adam);
+
+  const nextHistoryStack = state.historyStack.slice(0, -1);
+  const nextStepNumber = state.stepNumber - 1;
+
+  return {
+    ...state,
+    stepNumber: nextStepNumber,
+    vanilla: nextVanilla,
+    momentum: nextMomentum,
+    adam: nextAdam,
+    isAllTerminated: false,
+    historyStack: nextHistoryStack,
+  };
+}
+
+export function resetOptimizerComparison(
+  config: OptimizerComparisonConfig
+): OptimizerComparisonState {
+  return createOptimizerComparison(config);
 }

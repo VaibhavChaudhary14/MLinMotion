@@ -5,6 +5,10 @@ import {
   stepGradientDescent,
   stepBackGradientDescent,
   runGradientDescent,
+  getGradientDescentExplanation,
+  createOptimizerComparison,
+  stepOptimizerComparison,
+  stepBackOptimizerComparison,
   GRADIENT_DESCENT_OBJECTIVES,
   finiteDifferenceGradient,
   vectorNorm,
@@ -367,7 +371,7 @@ test('TC-GD-14: Maximum iteration safeguard works cleanly', () => {
 
   state = runGradientDescent(state, 50);
   assert.equal(state.iteration, 15);
-  assert.ok(state.isConverged, 'Max iteration triggers termination');
+  assert.ok(state.isMaxIterationsReached, 'Max iteration triggers termination flag');
   assert.ok(state.stopReason?.includes('Maximum iteration'));
 });
 
@@ -388,3 +392,246 @@ test('TC-GD-15: No false convergence at the alpha = 2 limit cycle', () => {
     assert.ok(state.isLimitCycle, `Step ${step + 1}: Must retain limit-cycle flag`);
   }
 });
+
+// -----------------------------------------------------------------------------
+// 6. PHASE 2 CHECKS: EXACT 2D EIGENMODE BOUNDARIES & EXCEPTIONAL CASES
+// -----------------------------------------------------------------------------
+
+test('TC-GD-16: Exact 2D stability boundary for anisotropic Hessian (alpha = 0.19, 0.20, 0.21)', () => {
+  // Hessian H = diag(1, 10). lambdaMax = 10 -> alphaCrit = 0.20. Minimum at (3, 2).
+  // Initial point offset on both coordinates: (0.0, 3.0) -> e1_0 = -3.0, e2_0 = 1.0
+
+  // 1. Case alpha = 0.19 (subcritical: both modes converge)
+  // r1 = 1 - 0.19 = 0.81 < 1; r2 = 1 - 1.9 = -0.90 (|r2| = 0.90 < 1)
+  // With r2 = -0.90, reaching ||grad|| < 1e-4 takes exactly ceil(ln(1e-5)/ln(0.90)) = 110 steps
+  let state19 = createGradientDescentSimulation({
+    objectiveId: 'quadratic2d-anisotropic',
+    learningRate: 0.19,
+    initialTheta: [0.0, 3.0],
+    maxIterations: 120,
+  });
+  state19 = runGradientDescent(state19, 120);
+  assert.ok(state19.isConverged, 'alpha = 0.19 must converge on both modes within 120 steps');
+  assert.ok(Math.abs(state19.theta[0] - 3.0) < 1e-3, 'theta_1 must converge to 3.0');
+  assert.ok(Math.abs(state19.theta[1] - 2.0) < 1e-3, 'theta_2 must converge to 2.0');
+
+  // 2. Case alpha = 0.20 (critical boundary: r2 = -1.0 persistent limit cycle, r1 = 0.80 contracts)
+  let state20 = createGradientDescentSimulation({
+    objectiveId: 'quadratic2d-anisotropic',
+    learningRate: 0.20,
+    initialTheta: [0.0, 3.0],
+    maxIterations: 30,
+  });
+  for (let step = 0; step < 10; step++) {
+    state20 = stepGradientDescent(state20);
+    // theta_2 error must flip signs with constant magnitude 1.0: alternates between 1.0 and 3.0
+    const expectedT2 = step % 2 === 0 ? 1.0 : 3.0;
+    assert.ok(
+      Math.abs(state20.theta[1] - expectedT2) < 1e-6,
+      `Step ${step + 1}: theta_2 (${state20.theta[1]}) must alternate around minimum 2.0 with amplitude 1.0`
+    );
+    // theta_1 error must strictly contract by 0.80 each step
+    const expectedT1 = 3.0 - 3.0 * Math.pow(0.8, step + 1);
+    assert.ok(
+      Math.abs(state20.theta[0] - expectedT1) < 1e-6,
+      `Step ${step + 1}: theta_1 must contract monotonically`
+    );
+  }
+  assert.ok(!state20.isDiverged, 'alpha = 0.20 must not be flagged as divergent');
+  assert.ok(!state20.isConverged, 'alpha = 0.20 limit cycle must not be flagged as converged');
+
+  // 3. Case alpha = 0.21 (supercritical: r2 = -1.10 explodes geometrically)
+  let state21 = createGradientDescentSimulation({
+    objectiveId: 'quadratic2d-anisotropic',
+    learningRate: 0.21,
+    initialTheta: [0.0, 3.0],
+    maxIterations: 35,
+  });
+  state21 = runGradientDescent(state21, 35);
+  assert.ok(state21.isDiverged, 'alpha = 0.21 must diverge along the steep mode');
+  assert.ok(!state21.isConverged, 'Must not report convergence on diverging run');
+});
+
+test('TC-GD-17: Stationary and exceptional cases (alpha = 0, starting at optimum)', () => {
+  // A. Alpha = 0: parameters remain stationary, but must NOT be reported as converged!
+  let stateZero = createGradientDescentSimulation({
+    objectiveId: 'quadratic1d',
+    learningRate: 0.0,
+    initialTheta: [0.5],
+  });
+  assert.equal(stateZero.regime, 'zero-step');
+  assert.equal(stateZero.isConverged, false, 'alpha = 0 must NOT be flagged as converged');
+
+  stateZero = stepGradientDescent(stateZero);
+  assert.equal(stateZero.theta[0], 0.5, 'Coordinates must remain frozen at alpha = 0');
+  assert.equal(stateZero.isConverged, false, 'Must not be converged after step with alpha = 0');
+  assert.ok(stateZero.stopReason?.includes('Zero step size'));
+
+  // B. Starting exactly at the optimum with alpha > alpha_crit (e.g. alpha = 5.0)
+  // Gradient is zero, so no movement occurs; remains in equilibrium
+  let stateOpt = createGradientDescentSimulation({
+    objectiveId: 'quadratic1d',
+    learningRate: 5.0, // well above critical alphaCrit = 2.0
+    initialTheta: [3.5], // exactly at optimum
+  });
+  assert.equal(stateOpt.isStationary, true);
+  assert.equal(stateOpt.isConverged, true);
+  assert.equal(stateOpt.isDiverged, false);
+  assert.equal(stateOpt.regime, 'stationary');
+
+  stateOpt = stepGradientDescent(stateOpt);
+  assert.equal(stateOpt.theta[0], 3.5, 'Must remain at optimum');
+  assert.equal(stateOpt.isDiverged, false);
+});
+
+test('TC-GD-18: Explanation layer modal decomposition verification for anisotropic valley', () => {
+  // Test at alpha = 0.15 on anisotropic valley
+  let state = createGradientDescentSimulation({
+    objectiveId: 'quadratic2d-anisotropic',
+    learningRate: 0.15,
+    initialTheta: [0.0, 3.5],
+  });
+  state = stepGradientDescent(state);
+
+  const expl = getGradientDescentExplanation(state);
+  // Verify that the explanation describes both eigenmodes: steep canyon wall and shallow floor
+  assert.ok(
+    expl.description.includes('steep canyon wall') || expl.description.includes('λ₂ = 10'),
+    'Explanation must detail steep eigenmode'
+  );
+  assert.ok(
+    expl.description.includes('shallow floor') || expl.description.includes('λ₁ = 1'),
+    'Explanation must detail shallow eigenmode'
+  );
+  assert.ok(
+    expl.description.includes('zig-zag'),
+    'Explanation must identify the characteristic zig-zag pattern'
+  );
+});
+
+// -----------------------------------------------------------------------------
+// 7. PHASE 2 OPTIMIZERS: MOMENTUM & ADAM STATE REVERSIBILITY
+// -----------------------------------------------------------------------------
+
+test('TC-GD-19: Polyak Momentum velocity accumulation and bidirectional state reversibility', () => {
+  let state = createGradientDescentSimulation({
+    objectiveId: 'quadratic2d-anisotropic',
+    optimizer: 'momentum',
+    learningRate: 0.05,
+    momentumGamma: 0.9,
+    initialTheta: [0.0, 3.0],
+  });
+
+  // Step 0: velocity initialized to [0, 0]
+  assert.deepEqual(state.optimizerState.velocity, [0, 0]);
+
+  // Step 1: grad = [-3.0, 10.0]
+  // v_1 = 0.9 * [0, 0] + 0.05 * [-3.0, 10.0] = [-0.15, 0.50]
+  // theta_1 = [0.0 - (-0.15), 3.0 - 0.50] = [0.15, 2.50]
+  state = stepGradientDescent(state);
+  assert.ok(Math.abs(state.optimizerState.velocity[0] - (-0.15)) < 1e-6);
+  assert.ok(Math.abs(state.optimizerState.velocity[1] - 0.50) < 1e-6);
+  assert.ok(Math.abs(state.theta[0] - 0.15) < 1e-6);
+  assert.ok(Math.abs(state.theta[1] - 2.50) < 1e-6);
+
+  // Step 2, 3, 4: velocity accumulates
+  for (let i = 0; i < 3; i++) {
+    state = stepGradientDescent(state);
+  }
+  assert.equal(state.stepNumber, 4);
+  const vAtStep4 = [...state.optimizerState.velocity];
+
+  // Reversibility: step back 4 times
+  for (let i = 0; i < 4; i++) {
+    state = stepBackGradientDescent(state);
+  }
+
+  assert.equal(state.stepNumber, 0);
+  assert.deepEqual(state.theta, [0.0, 3.0]);
+  assert.deepEqual(state.optimizerState.velocity, [0, 0], 'Velocity must be restored to [0, 0] after stepBack');
+
+  // Forward after backward reproduces identical state
+  for (let i = 0; i < 4; i++) {
+    state = stepGradientDescent(state);
+  }
+  assert.deepEqual(state.optimizerState.velocity, vAtStep4, 'Forward after backward reproduces exact velocity');
+});
+
+test('TC-GD-20: Adam moments, bias-correction and bidirectional state reversibility', () => {
+  let state = createGradientDescentSimulation({
+    objectiveId: 'quadratic2d-anisotropic',
+    optimizer: 'adam',
+    learningRate: 0.1,
+    adamBeta1: 0.9,
+    adamBeta2: 0.999,
+    initialTheta: [0.0, 3.0],
+  });
+
+  // Step 0: moments are [0, 0], t = 0
+  assert.deepEqual(state.optimizerState.m, [0, 0]);
+  assert.deepEqual(state.optimizerState.v, [0, 0]);
+  assert.equal(state.optimizerState.t, 0);
+
+  // Step forward 5 times
+  for (let i = 0; i < 5; i++) {
+    state = stepGradientDescent(state);
+    assert.equal(state.optimizerState.t, i + 1);
+    assert.ok(state.optimizerState.m.some((val) => val !== 0));
+    assert.ok(state.optimizerState.v.some((val) => val > 0));
+  }
+  assert.equal(state.stepNumber, 5);
+  const snapAtStep5 = JSON.parse(JSON.stringify(state));
+
+  // Step backward 5 times
+  for (let i = 0; i < 5; i++) {
+    state = stepBackGradientDescent(state);
+  }
+
+  assert.equal(state.stepNumber, 0);
+  assert.deepEqual(state.theta, [0.0, 3.0]);
+  assert.deepEqual(state.optimizerState.m, [0, 0], 'm must be restored to [0, 0]');
+  assert.deepEqual(state.optimizerState.v, [0, 0], 'v must be restored to [0, 0]');
+  assert.equal(state.optimizerState.t, 0, 't must be restored to 0');
+
+  // Step forward 5 times again
+  for (let i = 0; i < 5; i++) {
+    state = stepGradientDescent(state);
+  }
+  assert.deepEqual(state.theta, snapAtStep5.theta);
+  assert.deepEqual(state.optimizerState.m, snapAtStep5.optimizerState.m);
+  assert.deepEqual(state.optimizerState.v, snapAtStep5.optimizerState.v);
+  assert.equal(state.optimizerState.t, snapAtStep5.optimizerState.t);
+});
+
+test('TC-GD-21: Multi-Optimizer Comparison runner forward and backward synchronization', () => {
+  let compState = createOptimizerComparison({
+    objectiveId: 'quadratic2d-anisotropic',
+    learningRate: 0.08,
+    initialTheta: [0.0, 3.5],
+  });
+
+  // Initial verification
+  assert.equal(compState.stepNumber, 0);
+  assert.deepEqual(compState.vanilla.theta, [0.0, 3.5]);
+  assert.deepEqual(compState.momentum.theta, [0.0, 3.5]);
+  assert.deepEqual(compState.adam.theta, [0.0, 3.5]);
+
+  // Step forward 3 times
+  for (let i = 0; i < 3; i++) {
+    compState = stepOptimizerComparison(compState);
+  }
+  assert.equal(compState.stepNumber, 3);
+  assert.equal(compState.vanilla.stepNumber, 3);
+  assert.equal(compState.momentum.stepNumber, 3);
+  assert.equal(compState.adam.stepNumber, 3);
+
+  // Step back 3 times
+  for (let i = 0; i < 3; i++) {
+    compState = stepBackOptimizerComparison(compState);
+  }
+  assert.equal(compState.stepNumber, 0);
+  assert.deepEqual(compState.vanilla.theta, [0.0, 3.5]);
+  assert.deepEqual(compState.momentum.theta, [0.0, 3.5]);
+  assert.deepEqual(compState.adam.theta, [0.0, 3.5]);
+});
+
