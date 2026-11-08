@@ -25,6 +25,7 @@ import {
   Sparkles,
   History,
   CheckCircle2,
+  Award,
 } from 'lucide-react';
 
 export const LearningDashboard: React.FC = () => {
@@ -158,12 +159,13 @@ export const LearningDashboard: React.FC = () => {
           </AnalogCard>
 
           {/* Quick Instrument Launchpad */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {[
-              { title: 'ALGORITHM CINEMA', href: '/cinema', icon: Film, color: '#C83226' },
-              { title: 'INTERACTIVE LAB', href: '/lab', icon: FlaskConical, color: '#1848B8' },
+              { title: 'DIAGNOSTIC QUIZ', href: '/quiz', icon: Award, color: '#C83226' },
+              { title: 'ALGORITHM CINEMA', href: '/cinema', icon: Film, color: '#1848B8' },
+              { title: 'INTERACTIVE LAB', href: '/lab', icon: FlaskConical, color: '#33634B' },
               { title: 'MY DATA LAB', href: '/datalab', icon: Database, color: '#E28C05' },
-              { title: 'COMPARISON STUDIO', href: '/compare', icon: GitCompare, color: '#33634B' },
+              { title: 'COMPARISON STUDIO', href: '/compare', icon: GitCompare, color: '#6E3867' },
             ].map((tool) => {
               const Icon = tool.icon;
               return (

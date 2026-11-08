@@ -16,6 +16,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${baseUrl}/cinema`, lastModified: currentDate, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${baseUrl}/compare`, lastModified: currentDate, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${baseUrl}/datalab`, lastModified: currentDate, changeFrequency: 'monthly', priority: 0.7 },
+    { url: `${baseUrl}/quiz`, lastModified: currentDate, changeFrequency: 'weekly', priority: 0.85 },
     { url: `${baseUrl}/history`, lastModified: currentDate, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${baseUrl}/dashboard`, lastModified: currentDate, changeFrequency: 'weekly', priority: 0.7 },
   ];
