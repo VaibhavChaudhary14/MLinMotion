@@ -1280,12 +1280,22 @@ export const GradientDescentWorkbench: React.FC = () => {
 
               <AnalogButton
                 onClick={handleStepForward}
-                variant="secondary"
+                variant={predictionMode && activePredictionQuestion && isPredictionLocked ? 'ghost' : 'secondary'}
                 className="flex items-center gap-1.5 text-xs px-3 py-2 font-bold"
                 disabled={isPlaying || (isStudioMode ? compState.isAllTerminated : simState.isConverged || simState.isDiverged)}
+                title={predictionMode && activePredictionQuestion && isPredictionLocked ? 'Locked: Submit your prediction before stepping' : undefined}
               >
-                <SkipForward className="w-4 h-4" />
-                STEP FORWARD
+                {predictionMode && activePredictionQuestion && isPredictionLocked ? (
+                  <>
+                    <Lock className="w-4 h-4 text-[#C83226]" />
+                    <span>LOCKED (PREDICT)</span>
+                  </>
+                ) : (
+                  <>
+                    <SkipForward className="w-4 h-4" />
+                    <span>STEP FORWARD</span>
+                  </>
+                )}
               </AnalogButton>
 
               <AnalogButton
