@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { ALL_CONCEPT_CARDS, getConceptCardById } from '@/lib/curriculum/conceptCardsData';
 import { ConceptDeckView } from '@/components/concepts/ConceptDeckView';
-import { Metadata } from 'next';
+import type { Metadata } from 'next';
 
 interface ConceptPageProps {
   params: {
@@ -24,8 +24,19 @@ export function generateMetadata({ params }: ConceptPageProps): Metadata {
   }
 
   return {
-    title: `${concept.title} // Visual Concept Cards | ML in Motion`,
-    description: concept.subtitle,
+    title: `${concept.title} // Visual Concept Cards`,
+    description:
+      concept.subtitle ||
+      `Explore ${concept.title}: interactive visual simulations, mathematical intuition, Python implementation, variants, and failure modes.`,
+    alternates: {
+      canonical: `/concepts/${params.id}`,
+    },
+    openGraph: {
+      title: `${concept.title} // Visual Concept Cards | ML in Motion`,
+      description: concept.subtitle,
+      url: `https://mlinmotion.vercel.app/concepts/${params.id}`,
+      type: 'article',
+    },
   };
 }
 

@@ -1,5 +1,6 @@
 import { MetadataRoute } from 'next';
 import { ALL_CONCEPT_CARDS } from '@/lib/curriculum/conceptCardsData';
+import { getAllLessons } from '@/lib/curriculum/lessonsData';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = 'https://mlinmotion.vercel.app';
@@ -7,19 +8,19 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   // Core static pages
   const staticRoutes: MetadataRoute.Sitemap = [
-    { url: baseUrl, lastModified: currentDate, changeFrequency: 'weekly', priority: 1.0 },
+    { url: baseUrl, lastModified: currentDate, changeFrequency: 'daily', priority: 1.0 },
+    { url: `${baseUrl}/dashboard`, lastModified: currentDate, changeFrequency: 'daily', priority: 0.9 },
+    { url: `${baseUrl}/lessons`, lastModified: currentDate, changeFrequency: 'weekly', priority: 0.95 },
+    { url: `${baseUrl}/concepts`, lastModified: currentDate, changeFrequency: 'weekly', priority: 0.95 },
+    { url: `${baseUrl}/cinema`, lastModified: currentDate, changeFrequency: 'weekly', priority: 0.9 },
+    { url: `${baseUrl}/cinema/gradient-descent`, lastModified: currentDate, changeFrequency: 'weekly', priority: 0.9 },
+    { url: `${baseUrl}/lab`, lastModified: currentDate, changeFrequency: 'weekly', priority: 0.9 },
+    { url: `${baseUrl}/compare`, lastModified: currentDate, changeFrequency: 'weekly', priority: 0.85 },
+    { url: `${baseUrl}/datalab`, lastModified: currentDate, changeFrequency: 'weekly', priority: 0.85 },
+    { url: `${baseUrl}/quiz`, lastModified: currentDate, changeFrequency: 'weekly', priority: 0.9 },
+    { url: `${baseUrl}/history`, lastModified: currentDate, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${baseUrl}/about`, lastModified: currentDate, changeFrequency: 'monthly', priority: 0.8 },
     { url: `${baseUrl}/privacy`, lastModified: currentDate, changeFrequency: 'monthly', priority: 0.5 },
-    { url: `${baseUrl}/concepts`, lastModified: currentDate, changeFrequency: 'weekly', priority: 0.9 },
-    { url: `${baseUrl}/lessons`, lastModified: currentDate, changeFrequency: 'weekly', priority: 0.9 },
-    { url: `${baseUrl}/lab`, lastModified: currentDate, changeFrequency: 'weekly', priority: 0.9 },
-    { url: `${baseUrl}/cinema`, lastModified: currentDate, changeFrequency: 'monthly', priority: 0.8 },
-    { url: `${baseUrl}/cinema/gradient-descent`, lastModified: currentDate, changeFrequency: 'monthly', priority: 0.85 },
-    { url: `${baseUrl}/compare`, lastModified: currentDate, changeFrequency: 'monthly', priority: 0.7 },
-    { url: `${baseUrl}/datalab`, lastModified: currentDate, changeFrequency: 'monthly', priority: 0.7 },
-    { url: `${baseUrl}/quiz`, lastModified: currentDate, changeFrequency: 'weekly', priority: 0.85 },
-    { url: `${baseUrl}/history`, lastModified: currentDate, changeFrequency: 'monthly', priority: 0.6 },
-    { url: `${baseUrl}/dashboard`, lastModified: currentDate, changeFrequency: 'weekly', priority: 0.7 },
   ];
 
   // Dynamic concept cards (14 units)
@@ -30,22 +31,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.85,
   }));
 
-  // Core algorithm lessons
-  const lessonIds = [
-    'linear-regression',
-    'gradient-descent',
-    'kmeans',
-    'logistic-regression',
-    'decision-trees',
-    'pca',
-    'model-evaluation',
-    'model-comparison',
-  ];
-  const lessonRoutes: MetadataRoute.Sitemap = lessonIds.map((id) => ({
-    url: `${baseUrl}/lessons/${id}`,
+  // All 12 curriculum stages
+  const lessonRoutes: MetadataRoute.Sitemap = getAllLessons().map((lesson) => ({
+    url: `${baseUrl}/lessons/${lesson.id}`,
     lastModified: currentDate,
     changeFrequency: 'weekly',
-    priority: 0.8,
+    priority: 0.85,
   }));
 
   return [...staticRoutes, ...conceptRoutes, ...lessonRoutes];

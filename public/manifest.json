@@ -1,0 +1,23 @@
+{
+  "name": "ML in Motion — Interactive Machine Learning Lab",
+  "short_name": "ML in Motion",
+  "description": "Stop memorizing algorithms. Start seeing how they work. An interactive visual laboratory and textbook for Machine Learning.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F4EFE4",
+  "theme_color": "#FAF7F0",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-icon",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["education", "science", "productivity"]
+}

@@ -12,6 +12,13 @@ import {
   initializeCentroidsKMeansPlusPlus,
 } from '../math/kmeans.ts';
 
+export function calculatePointToCentroidDistance(
+  p: { x: number; y: number },
+  c: { x: number; y: number }
+): number {
+  return Math.sqrt((p.x - c.x) ** 2 + (p.y - c.y) ** 2);
+}
+
 export interface KMeansConfig {
   k: number;
   initMethod: 'kmeans++' | 'random' | 'manual';

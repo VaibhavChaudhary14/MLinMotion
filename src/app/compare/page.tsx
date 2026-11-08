@@ -1,5 +1,29 @@
+import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { ComparisonStudio } from '@/components/comparison/ComparisonStudio';
+
+export const metadata: Metadata = {
+  title: 'Comparison Studio — Same Data, Different Inductive Biases',
+  description:
+    'Compare compatible machine learning algorithms head-to-head on identical benchmark datasets. Explore predictions, decision boundaries, clustering partitions, and failure modes across concentric rings, elongated blobs, and moons.',
+  keywords: [
+    'algorithm comparison',
+    'k-means vs dbscan',
+    'inductive bias machine learning',
+    'model comparison studio',
+    'benchmark ML algorithms',
+  ],
+  alternates: {
+    canonical: '/compare',
+  },
+  openGraph: {
+    title: 'Algorithm Comparison Studio | ML in Motion',
+    description:
+      'Subject models to identical evaluation splits and observe where geometric assumptions succeed or fail.',
+    url: 'https://mlinmotion.vercel.app/compare',
+    type: 'website',
+  },
+};
 
 export default function ComparePage() {
   return (

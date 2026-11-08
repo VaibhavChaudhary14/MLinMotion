@@ -46,13 +46,43 @@ import {
   Code2,
   GitCompare,
   Zap,
+  Flame,
+  ShieldCheck,
+  TrendingUp,
+  Lock,
+  Unlock,
 } from 'lucide-react';
+import {
+  getGDPredictionForStep,
+  GD_CHALLENGES,
+  recordPredictionAttempt,
+  recordChallengeAttempt,
+  loadLearningProfile,
+} from '@/lib/learning';
+import { PredictionCheckpointPanel } from '@/components/learning/PredictionCheckpointPanel';
+import { ChallengeWorkbenchPanel } from '@/components/learning/ChallengeWorkbenchPanel';
+import { LearningAnalyticsCard } from '@/components/learning/LearningAnalyticsCard';
 
 export const GradientDescentWorkbench: React.FC = () => {
-  // Mode State: Single Optimizer vs Triple Comparison Studio
-  const [isStudioMode, setIsStudioMode] = useState<boolean>(false);
+  // Workbench View: Single Optimizer vs Triple Comparison Studio vs Challenges vs Ledger
+  const [workbenchView, setWorkbenchView] = useState<'single' | 'studio' | 'challenges' | 'ledger'>('single');
+  const isStudioMode = workbenchView === 'studio';
   const [selectedOptimizer, setSelectedOptimizer] = useState<OptimizerType>('vanilla');
   const [tuningMode, setTuningMode] = useState<ComparisonTuningMode>('identical');
+
+  // Interactive Learning Systems (Phase 05)
+  const [predictionMode, setPredictionMode] = useState<boolean>(true);
+  const [isPredictionLocked, setIsPredictionLocked] = useState<boolean>(true);
+  const [activeChallengeId, setActiveChallengeId] = useState<string>('GD-01');
+  const [completedChallenges, setCompletedChallenges] = useState<Record<string, boolean>>(() => {
+    if (typeof window === 'undefined') return {};
+    const prof = loadLearningProfile();
+    const map: Record<string, boolean> = {};
+    Object.values(prof.challenges).forEach((c) => {
+      if (c.completed) map[c.challengeId] = true;
+    });
+    return map;
+  });
 
   // Objective & Hyperparameter State
   const [objectiveId, setObjectiveId] =
@@ -83,6 +113,12 @@ export const GradientDescentWorkbench: React.FC = () => {
       maxIterations: 50,
     })
   );
+
+  // Active prediction question
+  const activePredictionQuestion = useMemo(() => {
+    if (!predictionMode) return null;
+    return getGDPredictionForStep(simState);
+  }, [predictionMode, simState]);
 
   // Playback State
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -148,8 +184,74 @@ export const GradientDescentWorkbench: React.FC = () => {
       setCompState((prev) => stepOptimizerComparison(prev));
     } else {
       if (simState.isConverged || simState.isDiverged) return;
+      if (predictionMode && activePredictionQuestion && isPredictionLocked) {
+        // Enforce prediction commitment before advancement
+        return;
+      }
       setSimState((prev) => stepGradientDescent(prev));
+      setIsPredictionLocked(true);
     }
+  };
+
+  // Prediction checkpoint commitment
+  const handleCommitPrediction = (guess: any) => {
+    if (!activePredictionQuestion) return null as any;
+    const nextSim = stepGradientDescent(simState);
+    const result = activePredictionQuestion.evaluate(guess, simState, nextSim);
+    recordPredictionAttempt(
+      activePredictionQuestion.id,
+      'gradient-descent',
+      activePredictionQuestion.category,
+      guess,
+      result.status,
+      result.score
+    );
+    setIsPredictionLocked(false);
+    return result;
+  };
+
+  // Challenge selection & parameter application
+  const handleSelectChallenge = (id: string) => {
+    setActiveChallengeId(id);
+    const ch = GD_CHALLENGES.find((c) => c.id === id);
+    if (!ch) return;
+    const nextObjId = (ch.defaultConfig.objectiveId as GradientDescentObjectiveId) ?? objectiveId;
+    const nextAlpha = ch.defaultConfig.learningRate ?? learningRate;
+    const nextOpt = ch.defaultConfig.optimizer ?? selectedOptimizer;
+    let next1D = initialTheta1D;
+    let next2D = initialTheta2D;
+    if (ch.defaultConfig.initialTheta) {
+      if (ch.defaultConfig.initialTheta.length === 1) {
+        next1D = ch.defaultConfig.initialTheta[0];
+      } else {
+        next2D = [ch.defaultConfig.initialTheta[0], ch.defaultConfig.initialTheta[1]];
+      }
+    }
+    setObjectiveId(nextObjId);
+    setLearningRate(nextAlpha);
+    setSelectedOptimizer(nextOpt);
+    setInitialTheta1D(next1D);
+    setInitialTheta2D(next2D);
+    reinitialize(nextObjId, nextAlpha, nextOpt, next1D, next2D);
+  };
+
+  // Challenge outcome verification
+  const handleVerifyChallenge = (challenge: any) => {
+    const outcome = challenge.verifyCondition(
+      simState,
+      getGradientDescentMetrics(simState),
+      simState.pathHistory
+    );
+    recordChallengeAttempt(
+      challenge.id,
+      'gradient-descent',
+      outcome.passed,
+      outcome.metricsObserved
+    );
+    if (outcome.passed) {
+      setCompletedChallenges((prev) => ({ ...prev, [challenge.id]: true }));
+    }
+    return outcome;
   };
 
   // Step Backward (Exact Reversibility Contract)
@@ -347,78 +449,121 @@ export const GradientDescentWorkbench: React.FC = () => {
           </div>
         </div>
 
-        {/* Studio Mode Selector (Phase 2 Upgrade) */}
+        {/* Workbench View & Mode Selector (Phase 05 Upgrade) */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2 bg-[#E8E1D3]/70 border border-[#1A1715] text-xs">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-[#1A1715] uppercase text-[11px]">BENCHMARK MODE:</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-[#1A1715] uppercase text-[11px]">MODE:</span>
             <button
               onClick={() => {
-                setIsStudioMode(false);
+                setWorkbenchView('single');
                 setIsPlaying(false);
               }}
               className={`px-3 py-1 border border-[#1A1715] font-black transition-all ${
-                !isStudioMode
+                workbenchView === 'single'
                   ? 'bg-[#1A1715] text-[#FAF7F0] shadow-[2px_2px_0px_#1A1715]'
                   : 'bg-[#FAF7F0] text-[#1A1715] hover:bg-[#E8E1D3]'
               }`}
             >
-              SINGLE OPTIMIZER STUDY
+              SINGLE STUDY
             </button>
             <button
               onClick={() => {
-                setIsStudioMode(true);
+                setWorkbenchView('studio');
                 setIsPlaying(false);
                 if (objectiveId === 'quadratic1d') {
                   handleObjectiveChange('quadratic2d-anisotropic');
                 }
               }}
               className={`px-3 py-1 border border-[#1A1715] font-black flex items-center gap-1.5 transition-all ${
-                isStudioMode
+                workbenchView === 'studio'
                   ? 'bg-[#1848B8] text-[#FAF7F0] shadow-[2px_2px_0px_#1A1715]'
                   : 'bg-[#FAF7F0] text-[#1A1715] hover:bg-[#E8E1D3]'
               }`}
             >
               <GitCompare className="w-3.5 h-3.5" />
-              OPTIMIZER COMPARISON STUDIO (GD vs MOMENTUM vs ADAM)
+              COMPARISON STUDIO
+            </button>
+            <button
+              onClick={() => {
+                setWorkbenchView('challenges');
+                setIsPlaying(false);
+              }}
+              className={`px-3 py-1 border border-[#1A1715] font-black flex items-center gap-1.5 transition-all ${
+                workbenchView === 'challenges'
+                  ? 'bg-[#C83226] text-[#FAF7F0] shadow-[2px_2px_0px_#1A1715]'
+                  : 'bg-[#FAF7F0] text-[#1A1715] hover:bg-[#E8E1D3]'
+              }`}
+            >
+              <Flame className="w-3.5 h-3.5" />
+              BREAK THE ALGORITHM (5 CHALLENGES)
+            </button>
+            <button
+              onClick={() => {
+                setWorkbenchView('ledger');
+                setIsPlaying(false);
+              }}
+              className={`px-3 py-1 border border-[#1A1715] font-black flex items-center gap-1.5 transition-all ${
+                workbenchView === 'ledger'
+                  ? 'bg-[#33634B] text-[#FAF7F0] shadow-[2px_2px_0px_#1A1715]'
+                  : 'bg-[#FAF7F0] text-[#1A1715] hover:bg-[#E8E1D3]'
+              }`}
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              LEARNING LEDGER
             </button>
           </div>
 
-          {/* Optimizer selector for Single Mode */}
-          {!isStudioMode && (
-            <div className="flex items-center gap-1 text-[11px]">
-              <span className="font-bold text-[#5C544B]">OPTIMIZER:</span>
-              <button
-                onClick={() => handleOptimizerChange('vanilla')}
-                className={`px-2 py-0.5 border border-[#1A1715] font-bold ${
-                  selectedOptimizer === 'vanilla'
-                    ? 'bg-[#1848B8] text-[#FAF7F0]'
-                    : 'bg-[#FAF7F0] text-[#1A1715]'
-                }`}
-              >
-                Vanilla GD
-              </button>
-              <button
-                onClick={() => handleOptimizerChange('momentum')}
-                className={`px-2 py-0.5 border border-[#1A1715] font-bold ${
-                  selectedOptimizer === 'momentum'
-                    ? 'bg-[#E28C05] text-[#1A1715]'
-                    : 'bg-[#FAF7F0] text-[#1A1715]'
-                }`}
-              >
-                Momentum (γ=0.9)
-              </button>
-              <button
-                onClick={() => handleOptimizerChange('adam')}
-                className={`px-2 py-0.5 border border-[#1A1715] font-bold ${
-                  selectedOptimizer === 'adam'
-                    ? 'bg-[#33634B] text-[#FAF7F0]'
-                    : 'bg-[#FAF7F0] text-[#1A1715]'
-                }`}
-              >
-                Adam
-              </button>
-            </div>
-          )}
+          {/* Right Toolbar: Prediction Mode Toggle & Optimizer Selector */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPredictionMode(!predictionMode)}
+              className={`px-2.5 py-1 border border-[#1A1715] text-[10px] font-bold flex items-center gap-1 transition-all ${
+                predictionMode
+                  ? 'bg-[#1848B8] text-[#FAF7F0] shadow-[1.5px_1.5px_0px_#1A1715]'
+                  : 'bg-[#E8E1D3] text-[#5C544B]'
+              }`}
+              title="When enabled, requires predicting step outcomes before advancing"
+            >
+              <Sparkles className="w-3 h-3" />
+              PREDICTION MODE: {predictionMode ? 'ON (LOCKED)' : 'OFF'}
+            </button>
+
+            {workbenchView === 'single' && (
+              <div className="flex items-center gap-1 text-[11px]">
+                <span className="font-bold text-[#5C544B]">OPTIMIZER:</span>
+                <button
+                  onClick={() => handleOptimizerChange('vanilla')}
+                  className={`px-2 py-0.5 border border-[#1A1715] font-bold ${
+                    selectedOptimizer === 'vanilla'
+                      ? 'bg-[#1848B8] text-[#FAF7F0]'
+                      : 'bg-[#FAF7F0] text-[#1A1715]'
+                  }`}
+                >
+                  Vanilla GD
+                </button>
+                <button
+                  onClick={() => handleOptimizerChange('momentum')}
+                  className={`px-2 py-0.5 border border-[#1A1715] font-bold ${
+                    selectedOptimizer === 'momentum'
+                      ? 'bg-[#E28C05] text-[#1A1715]'
+                      : 'bg-[#FAF7F0] text-[#1A1715]'
+                  }`}
+                >
+                  Momentum
+                </button>
+                <button
+                  onClick={() => handleOptimizerChange('adam')}
+                  className={`px-2 py-0.5 border border-[#1A1715] font-bold ${
+                    selectedOptimizer === 'adam'
+                      ? 'bg-[#33634B] text-[#FAF7F0]'
+                      : 'bg-[#FAF7F0] text-[#1A1715]'
+                  }`}
+                >
+                  Adam
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Objective Selector & Preset Bar */}
@@ -1247,8 +1392,28 @@ export const GradientDescentWorkbench: React.FC = () => {
 
         {/* RIGHT COLUMN: 5 SYNCHRONIZED REPRESENTATIONS OR TRIPLE SCOREBOARD (5 COLS) */}
         <div className="lg:col-span-5 space-y-4">
-          {/* TRIPLE SCOREBOARD IN STUDIO MODE */}
-          {isStudioMode ? (
+          {workbenchView === 'challenges' ? (
+            <ChallengeWorkbenchPanel
+              challenges={GD_CHALLENGES}
+              activeChallengeId={activeChallengeId}
+              onSelectChallenge={handleSelectChallenge}
+              onVerifyChallenge={handleVerifyChallenge}
+              completedChallenges={completedChallenges}
+              onResetSimulation={handleReset}
+            />
+          ) : workbenchView === 'ledger' ? (
+            <LearningAnalyticsCard
+              algorithmFilter="gradient-descent"
+              onProfileUpdated={() => {
+                const prof = loadLearningProfile();
+                const map: Record<string, boolean> = {};
+                Object.values(prof.challenges).forEach((c) => {
+                  if (c.completed) map[c.challengeId] = true;
+                });
+                setCompletedChallenges(map);
+              }}
+            />
+          ) : isStudioMode ? (
             <div className="bg-[#FAF7F0] border-[1.5px] border-[#1A1715] p-4 shadow-[3px_3px_0px_#1A1715] space-y-3">
               <div className="flex items-center justify-between border-b border-[#1A1715] pb-2 text-xs">
                 <div className="flex items-center gap-2 text-[#1848B8]">
@@ -1356,6 +1521,18 @@ export const GradientDescentWorkbench: React.FC = () => {
           ) : (
             // SINGLE MODE: 5 SYNCHRONIZED REPRESENTATIONS
             <>
+              {/* PREDICTION CHECKPOINT PANEL (LOCKED BEFORE ADVANCEMENT) */}
+              {predictionMode && activePredictionQuestion && (
+                <PredictionCheckpointPanel
+                  question={activePredictionQuestion}
+                  isLocked={isPredictionLocked}
+                  onCommitPrediction={handleCommitPrediction}
+                  onUnlockBypass={() => setIsPredictionLocked(false)}
+                  onAdvanceStep={handleStepForward}
+                  onRetry={() => setIsPredictionLocked(true)}
+                />
+              )}
+
               {/* REPRESENTATION 1: LIVE NUMERICAL TELEMETRY & TAPE COUNTER */}
               <div className="bg-[#FAF7F0] border-[1.5px] border-[#1A1715] p-4 shadow-[3px_3px_0px_#1A1715] space-y-3">
                 <div className="flex items-center justify-between border-b border-[#1A1715] pb-2 text-xs">
