@@ -1,4 +1,16 @@
 /** @type {import('next').NextConfig} */
+const cspHeader = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://va.vercel-scripts.com",
+  "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+  "font-src 'self' https://cdn.jsdelivr.net data:",
+  "img-src 'self' blob: data:",
+  "connect-src 'self' https://vitals.vercel-insights.com",
+  "frame-ancestors 'self'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
+
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
@@ -7,6 +19,10 @@ const nextConfig = {
       {
         source: '/:path*',
         headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: cspHeader,
+          },
           {
             key: 'X-DNS-Prefetch-Control',
             value: 'on',

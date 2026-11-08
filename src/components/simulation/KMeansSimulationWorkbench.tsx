@@ -355,7 +355,23 @@ export const KMeansSimulationWorkbench: React.FC = () => {
             </div>
             <p className="text-[#5C544B] text-[11px] mt-0.5">{activeScenario.whyKMeansFailsOrSucceeds}</p>
           </div>
-          <Badge variant="neutral">K = {kValue}</Badge>
+          <div className="flex items-center gap-2 shrink-0">
+            <Badge variant="neutral">K = {kValue}</Badge>
+            <Link
+              href={`/compare?geometry=${
+                scenarioId === 'concentric'
+                  ? 'concentric'
+                  : scenarioId === 'outliers' || scenarioId === 'poor_init'
+                  ? 'elongated'
+                  : 'blobs'
+              }`}
+            >
+              <button className="px-2.5 py-1 text-[10px] font-bold uppercase bg-[#FAF7F0] text-[#1848B8] border border-[#1A1715] shadow-[1px_1px_0px_#1A1715] hover:bg-[#E8E1D3] flex items-center gap-1">
+                <span>COMPARE IN STUDIO</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -363,6 +379,38 @@ export const KMeansSimulationWorkbench: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* LEFT COLUMN: THE VISUAL SCATTERPLOT & CONTROLS (7 COLS) */}
         <div className="lg:col-span-7 space-y-4">
+          {/* Convergence Callout Banner */}
+          {simState.isConverged && (
+            <div className="p-3 bg-[#33634B]/15 border-[1.5px] border-[#33634B] shadow-[2px_2px_0px_#1A1715] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-[#33634B] shrink-0" />
+                <div>
+                  <span className="font-bold text-[#33634B] uppercase block">
+                    CONVERGENCE ACHIEVED AT ITERATION {simState.iteration} (WCSS: {Math.round(simState.inertia).toLocaleString()})
+                  </span>
+                  <span className="text-[11px] text-[#5C544B]">
+                    Centroid shifts fell below threshold. Compare this partition with DBSCAN and Agglomerative clustering.
+                  </span>
+                </div>
+              </div>
+              <Link
+                href={`/compare?geometry=${
+                  scenarioId === 'concentric'
+                    ? 'concentric'
+                    : scenarioId === 'outliers' || scenarioId === 'poor_init'
+                    ? 'elongated'
+                    : 'blobs'
+                }`}
+                className="shrink-0"
+              >
+                <button className="px-3 py-1.5 bg-[#1848B8] text-[#FAF7F0] font-bold text-xs uppercase border border-[#1A1715] shadow-[1.5px_1.5px_0px_#1A1715] hover:bg-[#153a96] flex items-center gap-1.5">
+                  <span>BENCHMARK IN STUDIO</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </Link>
+            </div>
+          )}
+
           <div className="p-4 bg-[#FAF7F0] border-[1.5px] border-[#1A1715] shadow-[4px_4px_0px_#1A1715] space-y-3">
             {/* Canvas Header & Centroid Legend */}
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#D8CFC0] pb-2 text-xs">
