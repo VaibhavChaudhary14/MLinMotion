@@ -46,9 +46,9 @@ export const Header: React.FC = () => {
     { href: '/concepts', label: 'Concept Cards' },
     { href: '/lessons', label: 'Curriculum' },
     { href: '/lab', label: 'Algorithm Lab' },
-    { href: '/datalab', label: 'My Data Lab' },
     { href: '/compare', label: 'Comparison' },
-    { href: '/history', label: 'Notebook' },
+    { href: '/datalab', label: 'My Data Lab' },
+    { href: '/about', label: 'About' },
     { href: '/dashboard', label: 'Dashboard' },
   ];
 

@@ -32,13 +32,13 @@ export const Footer: React.FC = () => {
           </span>
           <ul className="space-y-1.5 text-xs text-[#5C544B]">
             <li>
-              <Link href="#explorer" className="hover:text-[#1A1715] transition-colors">
-                Explore Algorithms
+              <Link href="/concepts" className="hover:text-[#1A1715] transition-colors">
+                Concept Cards (14 Units)
               </Link>
             </li>
             <li>
-              <Link href="#paths" className="hover:text-[#1A1715] transition-colors">
-                Learning Paths
+              <Link href="/lessons" className="hover:text-[#1A1715] transition-colors">
+                12-Stage Curriculum
               </Link>
             </li>
             <li>
@@ -57,12 +57,17 @@ export const Footer: React.FC = () => {
         {/* Right Column (4 cols): PLATFORM links */}
         <div className="md:col-span-4 space-y-2.5">
           <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[#1848B8] block">
-            PLATFORM
+            PLATFORM & ETHICS
           </span>
           <ul className="space-y-1.5 text-xs text-[#5C544B]">
             <li>
-              <Link href="#how-it-works" className="hover:text-[#1A1715] transition-colors">
+              <Link href="/about" className="hover:text-[#1A1715] transition-colors">
                 About & Methodology
+              </Link>
+            </li>
+            <li>
+              <Link href="/privacy" className="hover:text-[#1A1715] transition-colors">
+                Privacy & Data Ethics
               </Link>
             </li>
             <li>
@@ -73,11 +78,6 @@ export const Footer: React.FC = () => {
             <li>
               <Link href="/datalab" className="hover:text-[#1A1715] transition-colors">
                 My Data Lab
-              </Link>
-            </li>
-            <li>
-              <Link href="/history" className="hover:text-[#1A1715] transition-colors">
-                Experiment Notebook
               </Link>
             </li>
           </ul>
