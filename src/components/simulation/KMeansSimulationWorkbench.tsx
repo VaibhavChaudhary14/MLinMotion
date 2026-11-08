@@ -242,6 +242,30 @@ export const KMeansSimulationWorkbench: React.FC = () => {
   const selectedPoint =
     simState.points.find((p) => p.id === selectedPointId) || simState.points[0];
 
+  // Discrete Voronoi Catchment Field (Exact Voronoi Tesselation for arbitrary K)
+  const voronoiTiles = useMemo(() => {
+    if (simState.centroids.length < 2) return [];
+    const tiles: Array<{ x: number; y: number; color: string }> = [];
+    const step = 20; // 30 cols x 22.5 rows
+    for (let x = 0; x < 600; x += step) {
+      for (let y = 0; y < 450; y += step) {
+        const midX = x + step / 2;
+        const midY = y + step / 2;
+        let minDistSq = Infinity;
+        let bestColor = simState.centroids[0].color;
+        for (const c of simState.centroids) {
+          const dSq = (midX - c.x) ** 2 + (midY - c.y) ** 2;
+          if (dSq < minDistSq) {
+            minDistSq = dSq;
+            bestColor = c.color;
+          }
+        }
+        tiles.push({ x, y, color: bestColor });
+      }
+    }
+    return tiles;
+  }, [simState.centroids]);
+
   return (
     <div className="space-y-6 select-none font-mono">
       {/* 1. TOP MASTER CHASSIS PLATE */}
@@ -467,8 +491,15 @@ export const KMeansSimulationWorkbench: React.FC = () => {
                 </defs>
                 <rect width="600" height="450" fill="url(#gridPattern)" />
 
-                {/* Voronoi / Decision Bisector Lines between Centroids */}
-                {simState.centroids.length >= 2 &&
+                {/* True Bounded Voronoi Catchment Shading for Arbitrary K */}
+                <g opacity="0.06">
+                  {voronoiTiles.map((t, idx) => (
+                    <rect key={`voronoi-${idx}`} x={t.x} y={t.y} width={20} height={20} fill={t.color} />
+                  ))}
+                </g>
+
+                {/* Voronoi Bisector Lines (shown for clean 2 & 3 cluster geometries) */}
+                {simState.centroids.length <= 3 &&
                   simState.centroids.map((c1, i) =>
                     simState.centroids.slice(i + 1).map((c2, j) => {
                       const midX = (c1.x + c2.x) / 2;

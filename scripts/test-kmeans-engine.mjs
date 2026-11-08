@@ -151,3 +151,75 @@ test('KMeans Engine: Full Multi-Representation Explanation Check', () => {
   assert.ok(expUpdate.equationLatex.includes('\\frac{1}{|S_k|}'));
   assert.equal(expUpdate.pseudocodeLine, 4);
 });
+
+test('KMeans Engine: Two-Stage WCSS Inequality Separation (Selim-Ismail Theorem)', () => {
+  const engine = new KMeansSimulationEngine();
+  const dataset = KMEANS_FAILURE_SCENARIOS.separated.generate().points;
+  let state = engine.initialize({ k: 3, initMethod: 'random', seed: 13 }, dataset, 13);
+
+  // Helper to calculate exact WCSS given points and centroids
+  const calcWCSS = (pts, cents) => {
+    let sum = 0;
+    for (const p of pts) {
+      if (p.cluster !== undefined && cents[p.cluster]) {
+        const c = cents[p.cluster];
+        sum += (p.x - c.x) ** 2 + (p.y - c.y) ** 2;
+      }
+    }
+    return sum;
+  };
+
+  // Step 1: Assignment Phase
+  const prevCentroids = JSON.parse(JSON.stringify(state.centroids));
+  state = engine.step(state);
+  assert.equal(state.phase, 'assign');
+  const wcssAfterAssign = calcWCSS(state.points, prevCentroids);
+
+  // Step 2: Update Phase
+  state = engine.step(state);
+  assert.equal(state.phase, 'update');
+  const wcssAfterUpdate = calcWCSS(state.points, state.centroids);
+
+  // Mathematical Invariant: J(c^(t+1), mu^(t+1)) <= J(c^(t+1), mu^(t))
+  assert.ok(
+    wcssAfterUpdate <= wcssAfterAssign + 1e-4,
+    `Stage 2 inequality failed: WCSS after update (${wcssAfterUpdate}) must be <= WCSS after assign (${wcssAfterAssign})`
+  );
+});
+
+test('KMeans Engine: Deep Reversibility State Audit (All Fields Restored)', () => {
+  const engine = new KMeansSimulationEngine();
+  const dataset = KMEANS_FAILURE_SCENARIOS.outliers.generate().points;
+  const initial = engine.initialize({ k: 2, initMethod: 'kmeans++', seed: 101 }, dataset, 101);
+
+  // Snapshot initial deep state
+  const initialDeep = JSON.parse(JSON.stringify(initial));
+
+  // Step forward twice
+  let state = engine.step(initial);
+  state = engine.step(state);
+
+  // Step backward twice
+  state = engine.stepBack(state);
+  state = engine.stepBack(state);
+
+  // Assert every single field is strictly restored
+  assert.equal(state.stepNumber, initial.stepNumber);
+  assert.equal(state.iteration, initial.iteration);
+  assert.equal(state.phase, initial.phase);
+  assert.equal(state.inertia, initial.inertia);
+  assert.equal(state.maxCentroidShift, initial.maxCentroidShift);
+  assert.equal(state.reassignments, initial.reassignments);
+  assert.equal(state.isConverged, initial.isConverged);
+  assert.deepEqual(state.emptyClusterIndices, initial.emptyClusterIndices);
+  assert.deepEqual(state.centroids, initial.centroids);
+  assert.equal(state.points.length, initial.points.length);
+  for (let i = 0; i < state.points.length; i++) {
+    assert.equal(state.points[i].cluster, initial.points[i].cluster);
+    assert.equal(state.points[i].x, initial.points[i].x);
+    assert.equal(state.points[i].y, initial.points[i].y);
+    assert.deepEqual(state.points[i].distsToAllCentroids, initial.points[i].distsToAllCentroids);
+  }
+  assert.equal(state.historyStack.length, 1);
+});
+

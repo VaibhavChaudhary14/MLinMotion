@@ -272,18 +272,28 @@ export class KMeansSimulationEngine
     });
 
     const updatedInertia = calculateInertia(pointsWithNewDistances, updatedCentroids);
+
+    // Compute coordinate span for scale-invariant normalized convergence
+    const xs = points.map((p) => p.x);
+    const ys = points.map((p) => p.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const coordSpan = Math.max(1, Math.hypot(maxX - minX, maxY - minY));
+    const relativeShift = maxShift / coordSpan;
+
     const epsilon = config.convergenceEpsilon ?? 0.005;
     const maxIter = config.maxIterations ?? 25;
 
-    // Convergence condition: centroid movement < epsilon and 0 reassignments
+    // Scale-invariant convergence: absolute displacement < epsilon OR relative shift < 1e-4
+    const isDisplacementConverged = maxShift < epsilon || relativeShift < 1e-4;
     const hasConverged =
-      (maxShift < epsilon && state.reassignments === 0) || iteration >= maxIter;
+      (isDisplacementConverged && state.reassignments === 0) || iteration >= maxIter;
 
     const nextPhase: KMeansPhase = hasConverged ? 'converged' : 'update';
     const convergenceReason = hasConverged
       ? iteration >= maxIter
         ? `Maximum iteration threshold (${maxIter}) reached.`
-        : `Centroid displacement Δ = ${maxShift.toFixed(4)}px fell below convergence threshold ε = ${epsilon}px.`
+        : `Centroid displacement (Δ = ${maxShift.toFixed(4)}px, relative shift = ${(relativeShift * 100).toFixed(4)}%) settled below convergence tolerance.`
       : undefined;
 
     const nextSnapshot: KMeansSnapshot = {
@@ -365,9 +375,16 @@ export class KMeansSimulationEngine
     const { phase, iteration, reassignments, maxCentroidShift, emptyClusterIndices } = state;
 
     if (phase === 'init') {
+      const initNotes =
+        state.config.initMethod === 'kmeans++'
+          ? 'K-Means++ seeding selected: points chosen with probability proportional to squared Euclidean distance D(x)², achieving an expected O(log K)-competitive bound over random seeding. Note: as a stochastic heuristic, it mitigates but does not strictly eliminate sub-optimal local minima.'
+          : state.config.initMethod === 'manual'
+          ? 'Manual placement active: custom starting centroids placed directly on the coordinate space.'
+          : 'Random uniform seeding active: centroids placed via deterministic pseudorandom selection.';
+
       return {
         headline: 'STAGE 01 // SEEDED CENTROID PLACEMENT',
-        description: `Seeded ${state.centroids.length} initial centroids on the coordinate space using ${state.config.initMethod}. Data points remain in an unassigned ground state.`,
+        description: `Seeded ${state.centroids.length} initial centroids on the coordinate space using ${state.config.initMethod}. Data points remain in an unassigned ground state. ${initNotes}`,
         equationLatex:
           '\\boldsymbol{\\mu}_k^{(0)} \\sim \\mathcal{D}(\\mathbf{X}) \\quad \\text{for } k \\in \\{1, \\dots, K\\}',
         pseudocodeLine: 1,
