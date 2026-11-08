@@ -164,4 +164,5 @@ export interface LocalLearningProfile {
   lastActive: number;
   predictions: PredictionAttemptRecord[];
   challenges: Record<string, ChallengeRecord>;
+  bypassesCount?: number;
 }

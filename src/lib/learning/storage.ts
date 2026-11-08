@@ -1,9 +1,11 @@
 /**
- * ML in Motion — 100% Client-Side Local Learning Analytics Storage
+ * ML in Motion — Client-Side Local Learning Analytics Storage
  *
- * Privacy Guarantees:
- * - 0% external analytics, telemetry, or network calls.
- * - All attempts and challenge completions stay in the browser's localStorage.
+ * Privacy Architecture & Delineation:
+ * - All personal learning progress, predictions, bypass counts, and challenge
+ *   evaluations are stored strictly client-side in the browser's localStorage.
+ * - Zero user learning data or experiment parameters are ever transmitted to any remote server.
+ * - Anonymous platform telemetry (page views, core web vitals) is managed separately via Vercel Analytics.
  * - Fully exportable (JSON) and clearable by the user at any time.
  */
 
@@ -22,6 +24,7 @@ export function getInitialProfile(): LocalLearningProfile {
     lastActive: Date.now(),
     predictions: [],
     challenges: {},
+    bypassesCount: 0,
   };
 }
 
@@ -39,6 +42,7 @@ export function loadLearningProfile(): LocalLearningProfile {
       lastActive: parsed.lastActive || Date.now(),
       predictions: Array.isArray(parsed.predictions) ? parsed.predictions : [],
       challenges: typeof parsed.challenges === 'object' && parsed.challenges !== null ? parsed.challenges : {},
+      bypassesCount: typeof parsed.bypassesCount === 'number' ? parsed.bypassesCount : 0,
     };
   } catch (err) {
     console.warn('[LearningStorage] Failed to read profile from localStorage:', err);
@@ -78,6 +82,20 @@ export function recordPredictionAttempt(
     timestamp: Date.now(),
   };
   profile.predictions.push(attempt);
+  saveLearningProfile(profile);
+  return profile;
+}
+
+/**
+ * Records when a learner intentionally skips or bypasses a prediction lock.
+ * Crucially, bypasses DO NOT affect prediction attempt counts, score tallies, or accuracy calculations.
+ */
+export function recordPredictionBypass(
+  _questionId?: string,
+  _algorithmId?: 'gradient-descent' | 'kmeans'
+): LocalLearningProfile {
+  const profile = loadLearningProfile();
+  profile.bypassesCount = (profile.bypassesCount || 0) + 1;
   saveLearningProfile(profile);
   return profile;
 }
@@ -149,5 +167,6 @@ export function calculateProfileStats(profile: LocalLearningProfile) {
     accuracyRate,
     totalChallengesAttempted: challengeKeys.length,
     completedChallenges,
+    bypassesCount: profile.bypassesCount || 0,
   };
 }

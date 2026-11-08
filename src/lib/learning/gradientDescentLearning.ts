@@ -473,9 +473,9 @@ export const GD_CHALLENGES: ChallengeDefinition<
       };
     },
     explanation: {
-      phenomenon: 'First-Order Inability to Distinguish Saddles from Minima',
-      mathematicalProof: 'At the saddle (0,0), ∇J = (0,0). Gradient descent update is θ_{t+1} = θ_t - α(0) = θ_t. Along θ₂, update is θ_{t+1,2} = (1 + α)θ_{t,2}. When θ₂ = 0, it never moves. When θ₂ ≠ 0, it accelerates exponentially away.',
-      practicalLesson: 'In deep neural networks, high-dimensional saddle points are far more common than bad local minima. Stochastic Gradient Descent (SGD) introduces gradient noise that naturally breaks saddle symmetry.',
+      phenomenon: 'First-Order Inability to Distinguish Saddles from Minima (Hessian Indefiniteness)',
+      mathematicalProof: 'A vanishing gradient ∇J(θ*) = 0 is merely a first-order necessary condition for a stationary point, not proof of a local minimum. Proving a local minimum requires the second-order sufficient condition: the Hessian H(θ*) must be positive definite (λ_min(H) > 0). At this saddle point (0, 0), ∇J = (0, 0) but H = diag(1, -1) has mixed eigenvalues (λ₁ = +1, λ₂ = -1). Along θ₂, the negative eigenvalue causes exponential repulsion θ_(t+1,2) = (1 + α)θ_(t,2) whenever θ₂ ≠ 0.',
+      practicalLesson: 'In high-dimensional deep learning loss landscapes, stationary points (∇J = 0) are overwhelmingly saddle points rather than local minima. Stochastic Gradient Descent (SGD) introduces gradient noise that naturally breaks saddle symmetry along negative curvature directions.',
     },
   },
   {
@@ -534,7 +534,7 @@ export const GD_CHALLENGES: ChallengeDefinition<
     subtitle: 'Highly non-convex landscape with dozens of local minima',
     difficulty: 'pathological',
     conceptTrap: 'Believing gradient descent guarantees finding the global minimum in non-convex optimization.',
-    objective: 'Initialize Vanilla GD at (2.5, 2.5) on the Rastrigin function. Watch it get trapped permanently in a suboptimal local basin (Loss > 20.0), far from the true global minimum at (0, 0) with Loss = 0.',
+    objective: 'Initialize Vanilla GD at (2.5, 2.5) on the Rastrigin function. Observe how the optimization trajectory is dictated by initial conditions θ⁽⁰⁾, becoming trapped in the nearest local basin (Loss > 0.8) rather than reaching the true global minimum at (0, 0) with Loss = 0.',
     instruction: 'Run Vanilla GD and note that it converges to a local sink. Then switch to Momentum or Adam with tuning to see if inertia carries it closer to the global basin.',
     defaultConfig: {
       objectiveId: 'rastrigin2d',
@@ -561,7 +561,7 @@ export const GD_CHALLENGES: ChallengeDefinition<
         return {
           passed: true,
           message: 'LOCAL MINIMUM TRAP CONFIRMED: Vanilla GD is trapped in a local basin! Loss remains far above global minimum 0.0.',
-          diagnosticEvidence: `Active at θ = [${state.theta.map((v) => v.toFixed(2)).join(', ')}], Loss = ${state.loss.toFixed(2)} (Global minimum is at (0, 0) with J=0).`,
+          diagnosticEvidence: `Initialization at [2.5, 2.5] trapped in local basin at θ = [${state.theta.map((v) => v.toFixed(2)).join(', ')}], empirical residual loss = ${state.loss.toFixed(2)} (Global minimum is at (0, 0) with J=0).`,
           metricsObserved: { theta: state.theta, loss: state.loss, isConverged: state.isConverged },
         };
       }
@@ -572,9 +572,9 @@ export const GD_CHALLENGES: ChallengeDefinition<
       };
     },
     explanation: {
-      phenomenon: 'Non-Convex Basin of Attraction Partitioning',
-      mathematicalProof: 'Rastrigin has a cosine modulation term 10 cos(2πθ_i) superimposed on a quadratic bowl. This creates dozens of local basins of attraction with zero gradient rims separating them.',
-      practicalLesson: 'In non-convex optimization, local search methods can only guarantee convergence to a stationary point (∇J = 0) within the initial basin of attraction, not the global optimum.',
+      phenomenon: 'Non-Convex Basin of Attraction Partitioning & Initialization Sensitivity',
+      mathematicalProof: 'The Rastrigin function J(θ) = 20 + ∑(θ_i² - 10 cos(2πθ_i)) superimposes high-frequency cosine undulations on a parabolic bowl. Local search methods follow the negative gradient within the basin of attraction dictated strictly by the initial condition θ⁽⁰⁾ and step sequence. The observed residual loss (J > 0.8) is an empirical characteristic of the specific [2.5, 2.5] initialization basin rather than an intrinsic universal constant of the Rastrigin function.',
+      practicalLesson: 'First-order gradient descent is trajectory- and initialization-dependent. It can only guarantee convergence to a stationary point within the basin into which it was initialized. Finding global minima in multimodal problems requires momentum, stochasticity, or multiple random restarts.',
     },
   },
 ];

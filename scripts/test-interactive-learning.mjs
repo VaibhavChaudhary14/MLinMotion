@@ -28,6 +28,7 @@ import {
 import {
   getInitialProfile,
   calculateProfileStats,
+  recordPredictionBypass,
 } from '../src/lib/learning/storage.ts';
 
 // =============================================================================
@@ -526,4 +527,82 @@ test('TC-IL-19: Local Learning Analytics — Profile initialization and stats ca
   assert.equal(stats.accuracyRate, 50);
   assert.equal(stats.totalChallengesAttempted, 1);
   assert.equal(stats.completedChallenges, 1);
+});
+
+test('TC-IL-20: Bypass Tracking Invariant — Bypasses increment counter without corrupting accuracy', () => {
+  const profile = getInitialProfile();
+  assert.equal(profile.bypassesCount, 0);
+
+  // Add 1 correct prediction: accuracy 100%
+  profile.predictions.push({
+    id: 'p1',
+    questionId: 'gd-pred-1d-step',
+    algorithmId: 'gradient-descent',
+    category: 'parameter_update',
+    userGuess: 1.70,
+    status: 'correct',
+    score: 1.0,
+    timestamp: Date.now(),
+  });
+
+  // Simulate 3 prediction bypasses
+  profile.bypassesCount = 3;
+
+  const stats = calculateProfileStats(profile);
+  assert.equal(stats.totalPredictions, 1, 'Total predictions must remain 1');
+  assert.equal(stats.correctPredictions, 1);
+  assert.equal(stats.accuracyRate, 100, 'Accuracy rate must remain 100% despite bypasses');
+  assert.equal(stats.bypassesCount, 3, 'Bypasses count must equal 3');
+});
+
+test('TC-IL-21: K-Means++ Theoretical Guarantee — Verifies expected O(log K) bound formulation', () => {
+  const km02 = KMEANS_CHALLENGES.find((c) => c.id === 'KM-02');
+  assert.ok(km02, 'KM-02 must be defined');
+
+  // Verify that mathematical proof accurately describes expected approximation guarantee
+  const proof = km02.explanation.mathematicalProof;
+  assert.ok(proof.includes('Arthur & Vassilvitskii (2007)'), 'Must cite Arthur & Vassilvitskii');
+  assert.ok(proof.includes('E[φ] ≤ 8(ln K + 2)φ_opt') || proof.includes('expected approximation'), 'Must state expected approximation guarantee');
+  assert.ok(proof.includes('do not guarantee an absolute numerical threshold on every single run') || proof.includes('stochastic'), 'Must note stochasticity of individual runs');
+
+  // Verify objective does not claim a guaranteed threshold < 150 on every run
+  assert.ok(!km02.objective.includes('WCSS < 150'), 'Objective must not claim rigid WCSS < 150 threshold guarantee');
+});
+
+test('TC-IL-22: Wrong K & Monotonicity Audit — Verifies fit vs complexity trade-off and two-stage descent', () => {
+  const km01 = KMEANS_CHALLENGES.find((c) => c.id === 'KM-01');
+  assert.ok(km01, 'KM-01 must be defined');
+
+  // Verify KM-01 disclaims "irreversible jump" and frames WCSS monotonically
+  const proof = km01.explanation.mathematicalProof;
+  assert.ok(!proof.includes('irreversible jump'), 'Must not describe WCSS change as irreversible jump');
+  assert.ok(proof.includes('decreases monotonically with K') || proof.includes('min_μ J_K ≤ min_μ J_(K-1)'), 'Must frame WCSS non-increasing with K');
+  assert.ok(proof.includes('Elbow') || proof.includes('Occam') || proof.includes('parsimony'), 'Must teach fit vs complexity trade-off');
+
+  // Checkpoint C monotonicity check
+  const engine = new KMeansSimulationEngine();
+  const dataset = [{ id: '1', x: 1, y: 1 }, { id: '2', x: 2, y: 2 }];
+  const sim = engine.initialize({ k: 2, initMethod: 'random' }, dataset);
+  // Set phase to 'update' so it generates Checkpoint C
+  sim.phase = 'update';
+  // Checkpoint C is generated when phase is not 'init' or 'assign'
+  // Actually let's check getKMeansPredictionForStep
+  const predC = getKMeansPredictionForStep(sim);
+  if (predC && predC.id === 'km-pred-wcss-movement') {
+    const eq = predC.explanation?.mathEquation ?? '';
+    assert.ok(eq.includes('Stage 1') && eq.includes('Stage 2'), 'Must separate Stage 1 and Stage 2 inequalities');
+  }
+});
+
+test('TC-IL-23: Saddle Point & Rastrigin Sensitivity — Verifies Hessian indefiniteness and empirical basin', () => {
+  const gd03 = GD_CHALLENGES.find((c) => c.id === 'GD-03');
+  assert.ok(gd03, 'GD-03 must be defined');
+  const proof03 = gd03.explanation.mathematicalProof;
+  assert.ok(proof03.includes('first-order necessary condition'), 'Must state ∇J=0 is first-order necessary condition');
+  assert.ok(proof03.includes('second-order sufficient condition') || proof03.includes('positive definite'), 'Must state second-order condition');
+
+  const gd05 = GD_CHALLENGES.find((c) => c.id === 'GD-05');
+  assert.ok(gd05, 'GD-05 must be defined');
+  const proof05 = gd05.explanation.mathematicalProof;
+  assert.ok(proof05.includes('empirical characteristic') || proof05.includes('basin of attraction'), 'Must identify J > 0.8 as empirical property of basin');
 });

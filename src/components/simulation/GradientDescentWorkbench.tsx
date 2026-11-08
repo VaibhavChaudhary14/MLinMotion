@@ -56,6 +56,7 @@ import {
   getGDPredictionForStep,
   GD_CHALLENGES,
   recordPredictionAttempt,
+  recordPredictionBypass,
   recordChallengeAttempt,
   loadLearningProfile,
 } from '@/lib/learning';
@@ -1537,7 +1538,10 @@ export const GradientDescentWorkbench: React.FC = () => {
                   question={activePredictionQuestion}
                   isLocked={isPredictionLocked}
                   onCommitPrediction={handleCommitPrediction}
-                  onUnlockBypass={() => setIsPredictionLocked(false)}
+                  onUnlockBypass={() => {
+                    recordPredictionBypass(activePredictionQuestion?.id, 'gradient-descent');
+                    setIsPredictionLocked(false);
+                  }}
                   onAdvanceStep={handleStepForward}
                   onRetry={() => setIsPredictionLocked(true)}
                 />

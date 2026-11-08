@@ -88,7 +88,7 @@ export const LearningAnalyticsCard: React.FC<LearningAnalyticsCardProps> = ({
         </div>
         <div className="flex items-center gap-1 text-[10px] text-[#33634B] bg-[#33634B]/10 px-2 py-0.5 border border-[#33634B]">
           <ShieldCheck className="w-3 h-3" />
-          <span>100% LOCAL-FIRST (ZERO TRACKING)</span>
+          <span>100% LOCAL LEDGER // ZERO CLOUD PROFILE</span>
         </div>
       </div>
 
@@ -122,7 +122,7 @@ export const LearningAnalyticsCard: React.FC<LearningAnalyticsCardProps> = ({
       {/* Export & Clear Actions */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#1A1715]/20">
         <div className="text-[10px] text-[#1A1715]/60">
-          Encrypted in browser storage ({profile.predictions.length} attempts recorded)
+          Stored strictly in browser localStorage ({profile.predictions.length} attempts, {profile.bypassesCount || 0} bypasses). Platform telemetry handled separately via Vercel Analytics.
         </div>
 
         <div className="flex items-center gap-2">

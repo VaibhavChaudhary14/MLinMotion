@@ -168,9 +168,9 @@ export function getKMeansPredictionForStep(
         actualAnswerSummary: 'strictly_non_increasing',
         score: isCorrect ? 1.0 : 0.0,
         explanation: {
-          headline: 'Selim-Ismail Monotonic Convergence Guarantee',
-          mathEquation: `J(c^{(t+1)}, \\boldsymbol{\\mu}^{(t+1)}) \\le J(c^{(t+1)}, \\boldsymbol{\\mu}^{(t)}) \\le J(c^{(t)}, \\boldsymbol{\\mu}^{(t)})`,
-          numericalEvidence: 'Both the assignment step (Voronoi partitioning) and the update step (arithmetic mean) are exact coordinate-descent minimizers of the same objective function J. Therefore, WCSS can never increase.',
+          headline: 'Selim-Ismail Monotonic Convergence Guarantee (Two-Stage Coordinate Descent)',
+          mathEquation: `\\text{Stage 1: } J(c^{(t+1)}, \\boldsymbol{\\mu}^{(t)}) \\le J(c^{(t)}, \\boldsymbol{\\mu}^{(t)}), \\quad \\text{Stage 2: } J(c^{(t+1)}, \\boldsymbol{\\mu}^{(t+1)}) \\le J(c^{(t+1)}, \\boldsymbol{\\mu}^{(t)})`,
+          numericalEvidence: 'Selim & Ismail (1984) proved that Lloyd’s algorithm is exact alternating coordinate descent on J. In Stage 1 (Voronoi Assignment), reassigning points to their nearest centroids can only decrease or preserve J. In Stage 2 (Centroid Update), taking the arithmetic mean of each cluster is the exact closed-form minimizer of J with respect to μ. Consequently, WCSS can never increase across either sub-stage.',
           pseudocodeLine: 8,
           pseudocodeSnippet: 'assert wcss_new <= wcss_old + 1e-9',
           pythonSnippet: 'wcss = np.sum([np.min([np.sum((x - c)**2) for c in centroids]) for x in points])',
@@ -194,11 +194,11 @@ export const KMEANS_CHALLENGES: ChallengeDefinition<
     id: 'KM-01',
     algorithmId: 'kmeans',
     title: 'The Wrong K Trap',
-    subtitle: 'Under-clustering vs Over-segmentation',
+    subtitle: 'Under-clustering vs Over-segmentation & Model Complexity',
     difficulty: 'foundational',
     conceptTrap: 'Assuming K-Means can automatically determine the true number of clusters in the data.',
     objective: 'Demonstrate the structural consequences of choosing the wrong K on a 3-cluster dataset. Set K = 2 to force unnatural cluster merger, then K = 5 to observe arbitrary shattering of a single coherent cluster.',
-    instruction: 'Select K = 2 and step until convergence. Observe the high WCSS residual. Then set K = 5 and note how a single natural cluster is sliced in half by a linear Voronoi boundary.',
+    instruction: 'Select K = 2 and step until convergence. Observe the high WCSS residual. Then set K = 5 and note how a single natural cluster is sliced in half by an artificial linear Voronoi boundary.',
     defaultConfig: {
       k: 2,
       initMethod: 'random',
@@ -240,9 +240,9 @@ export const KMEANS_CHALLENGES: ChallengeDefinition<
       };
     },
     explanation: {
-      phenomenon: 'Inductive Bias of Fixed-K Partitioning',
-      mathematicalProof: 'WCSS strictly decreases as K increases, reaching 0 when K = N. Without an Elbow heuristic, Silhouette score, or BIC regularization, WCSS alone will always falsely favor larger K.',
-      practicalLesson: 'Never select K based solely on minimizing WCSS; always look for the elbow point or validation metrics.',
+      phenomenon: 'Inductive Bias of Fixed-K Partitioning & Fit vs Complexity Trade-off',
+      mathematicalProof: 'By definition, WCSS decreases monotonically with K (min_μ J_K ≤ min_μ J_(K-1)) because adding parameters cannot worsen residual variance, trivially reaching 0 when K = N. Therefore, choosing K requires balancing goodness-of-fit against model complexity (parsimony / Occam’s razor) via heuristics such as the Elbow method (marginal gain ΔJ/ΔK) or information criteria (BIC).',
+      practicalLesson: 'Never select K based solely on minimizing raw WCSS; evaluate the elbow inflection or silhouette score to balance model fit against parsimony.',
     },
   },
   {
@@ -252,8 +252,8 @@ export const KMEANS_CHALLENGES: ChallengeDefinition<
     subtitle: 'Sensitivity to initial centroid placement and local minima',
     difficulty: 'intermediate',
     conceptTrap: 'Believing random centroid initialization is just as good as K-Means++ D² seeding.',
-    objective: 'Demonstrate how uniform random initialization can trap K-Means in a poor local minimum. Run Seed 7 with Random initialization (WCSS ≈ 450) and compare with K-Means++ initialization (WCSS < 150).',
-    instruction: 'Set Init Method to "random" with Seed 7. Run to convergence and record WCSS. Then switch to "kmeans++" and observe the dramatic drop in final inertia.',
+    objective: 'Demonstrate how uniform random initialization can trap Lloyd’s algorithm in a poor local minimum. Run Seed 7 with Random initialization and compare with K-Means++ D² seeding, which probabilistically spreads initial centroids.',
+    instruction: 'Set Init Method to "random" with Seed 7. Run to convergence and record WCSS. Then switch to "kmeans++" and observe how D² seeding statistically favors lower-inertia basins.',
     defaultConfig: {
       k: 3,
       initMethod: 'random',
@@ -288,8 +288,8 @@ export const KMEANS_CHALLENGES: ChallengeDefinition<
     },
     explanation: {
       phenomenon: 'Non-Convex Optimization and Local Minima in Clustering',
-      mathematicalProof: 'K-Means optimization is NP-hard. Lloyd’s algorithm is a heuristic that guarantees convergence only to a local minimum. K-Means++ chooses initial centroids with probability proportional to D(x)², guaranteeing an O(log K) competitive bound against the global optimum.',
-      practicalLesson: 'Always use K-Means++ initialization (standard in scikit-learn) rather than naive random seeding.',
+      mathematicalProof: 'K-Means optimization is NP-hard. Arthur & Vassilvitskii (2007) proved that K-Means++ D² seeding achieves an expected approximation guarantee E[φ] ≤ 8(ln K + 2)φ_opt on clustering potential φ (WCSS). While this provides an O(log K) competitive bound in expectation against worst-case initializations, individual runs are stochastic and do not guarantee an absolute numerical threshold on every single run.',
+      practicalLesson: 'Always use K-Means++ initialization to probabilistically guard against catastrophic local minima, while running multiple random restarts (n_init = 10) to select the best local optimum.',
     },
   },
   {
