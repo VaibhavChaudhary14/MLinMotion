@@ -45,6 +45,7 @@ export const Header: React.FC = () => {
   }, []);
 
   const navLinks = [
+    { href: '/dashboard', label: 'Dashboard' },
     { href: '/lessons', label: 'Curriculum' },
     { href: '/concepts', label: 'Concept Cards' },
     { href: '/cinema', label: 'Cinema' },
@@ -52,7 +53,6 @@ export const Header: React.FC = () => {
     { href: '/compare', label: 'Comparison' },
     { href: '/datalab', label: 'Data Lab' },
     { href: '/quiz', label: 'Quiz' },
-    { href: '/dashboard', label: 'Dashboard' },
     { href: '/about', label: 'About' },
   ];
 

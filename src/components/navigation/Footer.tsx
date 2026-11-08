@@ -61,6 +61,11 @@ export const Footer: React.FC = () => {
           </span>
           <ul className="space-y-1.5 text-xs text-[#5C544B]">
             <li>
+              <Link href="/dashboard" className="hover:text-[#1A1715] transition-colors">
+                Learning Dashboard
+              </Link>
+            </li>
+            <li>
               <Link href="/compare" className="hover:text-[#1A1715] transition-colors">
                 Comparison Studio
               </Link>
@@ -73,11 +78,6 @@ export const Footer: React.FC = () => {
             <li>
               <Link href="/quiz" className="hover:text-[#1A1715] transition-colors">
                 Diagnostic Quiz
-              </Link>
-            </li>
-            <li>
-              <Link href="/dashboard" className="hover:text-[#1A1715] transition-colors">
-                Learning Dashboard
               </Link>
             </li>
             <li>
