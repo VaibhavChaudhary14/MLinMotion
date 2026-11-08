@@ -1,4 +1,4 @@
-import { Point2D } from '@/types';
+import type { Point2D } from '../../types/index.ts';
 
 // Deterministic Pseudo-Random Generator
 export function seededRandom(seed: number): () => number {

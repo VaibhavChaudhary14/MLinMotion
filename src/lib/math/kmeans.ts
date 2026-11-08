@@ -1,4 +1,4 @@
-import { Point2D, Centroid, TraceEvent } from '@/types';
+import type { Point2D, Centroid, TraceEvent } from '../../types/index.ts';
 
 export interface KMeansStepResult {
   points: Point2D[];
